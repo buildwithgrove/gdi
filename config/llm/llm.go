@@ -1,4 +1,4 @@
-package config
+package llm
 
 import (
 	"errors"
@@ -11,20 +11,20 @@ import (
 )
 
 var (
-	errLLMConfigNotFound         = errors.New("config error: LLM config not found")
-	errInvalidDefaultLLMProvider = errors.New("config error: invalid default LLM provider: %s.\nValid providers:\n%s")
+	errLLMConfigNotFound         = errors.New("LLM config error: LLM config not found")
+	errInvalidDefaultLLMProvider = errors.New("LLM config error: invalid default LLM provider: %s.\nValid providers:\n%s")
 
-	errOpenAIConfigNotConfigured = errors.New("config error: OpenAI is not configured")
-	errOpenAIAPIKeyNotConfigured = errors.New("config error: OpenAI API key is not configured")
-	errInvalidOpenAIClientModel  = errors.New("config error: invalid OpenAI client model: %s.\nValid models: %s")
+	errOpenAIConfigNotConfigured = errors.New("LLM config error: OpenAI is not configured")
+	errOpenAIAPIKeyNotConfigured = errors.New("LLM config error: OpenAI API key is not configured")
+	errInvalidOpenAIClientModel  = errors.New("LLM config error: invalid OpenAI client model: %s.\nValid models: %s")
 
-	errDeepSeekConfigNotConfigured = errors.New("config error: DeepSeek is not configured")
-	errDeepSeekAPIKeyNotConfigured = errors.New("config error: DeepSeek API key is not configured")
-	errInvalidDeepSeekClientModel  = errors.New("config error: invalid DeepSeek client model: %s.\nValid models: %s")
+	errDeepSeekConfigNotConfigured = errors.New("LLM config error: DeepSeek is not configured")
+	errDeepSeekAPIKeyNotConfigured = errors.New("LLM config error: DeepSeek API key is not configured")
+	errInvalidDeepSeekClientModel  = errors.New("LLM config error: invalid DeepSeek client model: %s.\nValid models: %s")
 
-	errAnthropicConfigNotConfigured = errors.New("config error: Anthropic is not configured")
-	errAnthropicAPIKeyNotConfigured = errors.New("config error: Anthropic API key is not configured")
-	errInvalidAnthropicClientModel  = errors.New("config error: invalid Anthropic client model: %s.\nValid models: %s")
+	errAnthropicConfigNotConfigured = errors.New("LLM config error: Anthropic is not configured")
+	errAnthropicAPIKeyNotConfigured = errors.New("LLM config error: Anthropic API key is not configured")
+	errInvalidAnthropicClientModel  = errors.New("LLM config error: invalid Anthropic client model: %s.\nValid models: %s")
 )
 
 type LLMProviderType string

@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/buildwithgrove/gdi/config/llm"
 )
 
 const configFileName = ".config.gdi.yaml"
@@ -13,9 +15,10 @@ const configFileName = ".config.gdi.yaml"
 // eg. /Users/greg/.config.gdi.yaml
 var configFilePath = fmt.Sprintf("%s/%s", os.Getenv("HOME"), configFileName)
 
-// Config represents the configuration for LLM providers.
+// Config represents the configuration for LLM providers and Git.
 type Config struct {
-	LLMs *LLMConfig `yaml:"llms"`
+	Git  *GitConfig     `yaml:"git_config"`
+	LLMs *llm.LLMConfig `yaml:"llm_config"`
 }
 
 // LoadConfig loads the configuration from a YAML file.

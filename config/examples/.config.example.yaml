@@ -1,5 +1,8 @@
 # yaml-language-server: $schema=../config.schema.yaml
-llms:
+git_config:
+  owner_name: greg
+  personal_access_token: github_pat_1a2b3c4d5e6f7g8h9i0j1a2b3c4d5e6f7g8h9i0j
+llm_config:
   default_llm_provider: deepseek
   llm_providers:
     openai:

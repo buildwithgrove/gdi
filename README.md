@@ -7,7 +7,7 @@
 
 ## Overview
 
-**GDI** (Grove Developer Interface) is an Command Line Interface (CLI) for
+**GDI** (Grove Developer Interface) is a CLI for
 useful internal tooling for Grove's developer tools and resources.
 
 It is created using the [CobraCLI library](https://github.com/spf13/cobra).
