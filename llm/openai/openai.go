@@ -1,4 +1,4 @@
-package openapi
+package openai
 
 import (
 	"context"
@@ -15,21 +15,16 @@ var _ llm.LLMProvider = &OpenAIProvider{}
 type OpenAIProvider struct {
 	logger      polylog.Logger
 	client      *openai.Client
-	clientModel OpenAPIModel
+	clientModel OpenAIModel
 }
 
 type Config struct {
 	Logger      polylog.Logger
 	APIKey      string
-	ClientModel OpenAPIModel
+	ClientModel OpenAIModel
 }
 
 func NewOpenAIProvider(cfg Config) *OpenAIProvider {
-	if !cfg.ClientModel.IsValid() {
-		cfg.Logger.Warn().Msgf("invalid client model %s, using default model: %s", cfg.ClientModel, getDefaultModel())
-		cfg.ClientModel = getDefaultModel()
-	}
-
 	return &OpenAIProvider{
 		logger:      cfg.Logger,
 		client:      openai.NewClient(cfg.APIKey),
@@ -37,18 +32,22 @@ func NewOpenAIProvider(cfg Config) *OpenAIProvider {
 	}
 }
 
-func (p *OpenAIProvider) SendPrompt(ctx context.Context, prompt string, config ...llm.PromptConfig) (string, error) {
-	model := p.clientModel
-	if len(config) > 0 {
-		openaiModel := OpenAPIModel(config[0].OverrideModel)
-		if !openaiModel.IsValid() {
-			return "", fmt.Errorf("invalid OpenAI model: %s", config[0].OverrideModel)
-		}
-		model = openaiModel
+func (p *OpenAIProvider) SendPrompt(ctx context.Context, prompt string, flags ...llm.PromptFlag) (string, error) {
+	cfg := llm.PromptConfig{
+		Model: string(p.clientModel),
+	}
+
+	for _, flag := range flags {
+		flag(&cfg)
+	}
+
+	openaiModel := OpenAIModel(cfg.Model)
+	if !openaiModel.IsValid() {
+		return "", fmt.Errorf("invalid OpenAI model: %s.\nValid models:\n%s", cfg.Model, ListValidModelsStr())
 	}
 
 	req := openai.ChatCompletionRequest{
-		Model: string(model),
+		Model: string(openaiModel),
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -56,6 +55,8 @@ func (p *OpenAIProvider) SendPrompt(ctx context.Context, prompt string, config .
 			},
 		},
 	}
+
+	p.logger.With("model", openaiModel).Info().Msg("Sending prompt to OpenAI ...")
 
 	resp, err := p.client.CreateChatCompletion(ctx, req)
 	if err != nil {

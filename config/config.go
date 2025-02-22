@@ -1,20 +1,26 @@
 package config
 
 import (
+	"fmt"
 	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
+const configFileName = ".config.gdi.yaml"
+
+// eg. /Users/greg/.config.gdi.yaml
+var configFilePath = fmt.Sprintf("%s/%s", os.Getenv("HOME"), configFileName)
+
 // Config represents the configuration for LLM providers.
 type Config struct {
-	LLMs LLMConfig `yaml:"llms"`
+	LLMs *LLMConfig `yaml:"llms"`
 }
 
 // LoadConfig loads the configuration from a YAML file.
-func LoadConfig(filePath string) (*Config, error) {
-	file, err := os.Open(filePath)
+func LoadConfig() (*Config, error) {
+	file, err := os.Open(configFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -31,10 +37,5 @@ func LoadConfig(filePath string) (*Config, error) {
 		return nil, err
 	}
 
-	return &config, config.validate()
-}
-
-// Validate validates the configuration.
-func (c *Config) validate() error {
-	return c.LLMs.validate()
+	return &config, nil
 }

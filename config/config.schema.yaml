@@ -3,14 +3,19 @@ type: object
 additionalProperties: false
 properties:
   llms:
+    description: "LLM configuration."
     type: object
     additionalProperties: false
     properties:
       default_llm_provider:
         description: "The default LLM provider to use."
         type: string
-        enum: ["openai", "deepseek", "anthropic"]
+        enum:
+          - "openai"
+          - "deepseek"
+          - "anthropic"
       llm_providers:
+        description: "LLM providers configuration."
         type: object
         additionalProperties: false
         properties:
@@ -24,7 +29,11 @@ properties:
               client_model:
                 description: "Client model for OpenAI."
                 type: string
-                enum: ["o1-mini", "o1", "o3-mini", "gpt-4o"]
+                enum:
+                  - "o1-mini"
+                  - "o1"
+                  - "o3-mini"
+                  - "gpt-4o"
           deepseek:
             type: object
             additionalProperties: false
@@ -35,7 +44,10 @@ properties:
               client_model:
                 description: "Client model for DeepSeek."
                 type: string
-                enum: ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"]
+                enum:
+                  - "deepseek-chat"
+                  - "deepseek-coder"
+                  - "deepseek-reasoner"
           anthropic:
             type: object
             additionalProperties: false
@@ -46,4 +58,7 @@ properties:
               client_model:
                 description: "Client model for Anthropic."
                 type: string
-                enum: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-3-opus-20240229"]
+                enum:
+                  - "claude-3-5-haiku-latest"
+                  - "claude-3-5-sonnet-latest"
+                  - "claude-3-opus-20240229"
