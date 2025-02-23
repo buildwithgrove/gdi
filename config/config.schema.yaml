@@ -2,7 +2,7 @@ description: "Grove Developer Interface Configuration YAML: this file is used to
 type: object
 additionalProperties: false
 properties:
-  llms:
+  llm_config:
     description: "LLM configuration."
     type: object
     additionalProperties: false

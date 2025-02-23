@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../config.schema.yaml
-llms:
+llm_config:
   default_llm_provider: deepseek
   llm_providers:
     openai:
