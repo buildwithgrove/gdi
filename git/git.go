@@ -1,3 +1,23 @@
+// ---------------------------------------------------------------------------
+// File: git.go
+// Package: git
+//
+// Purpose:
+//
+//	This file implements key functionalities for interacting with Git repositories
+//	and GitHub. It provides a Provider struct that encapsulates the GitHub client
+//	and logger, as well as functions to create pull requests, push branches to remote,
+//	and generate formatted diffs for use with a language model (LLM).
+//
+// Features:
+//   - Validates Git configuration and initializes a Git provider with authentication.
+//   - Creates GitHub pull requests after ensuring the current branch is pushed.
+//   - Generates unified diffs between branches with several shell commands to format
+//     the output.
+//   - Offers utility functions for obtaining repository metadata like root directory,
+//     current branch name, and repository name using the go-git library.
+//
+// ---------------------------------------------------------------------------
 package git
 
 import (
@@ -15,32 +35,43 @@ import (
 	gitCfg "github.com/buildwithgrove/gdi/config/git"
 )
 
+// Constant representing the GitHub repository owner.
 const repoOwner = "buildwithgrove"
 
+// Provider represents a Git provider that encapsulates a GitHub client
+// and a logger. It provides methods to create pull requests and to
+// interact with Git repositories.
 type Provider struct {
-	logger polylog.Logger
-	*github.Client
+	logger         polylog.Logger // Logger for logging operations.
+	*github.Client                // Embedded GitHub client for API calls.
 }
 
+// NewGitProvider initializes and returns a new Git provider.
+// It validates the provided Git configuration and sets up an authenticated GitHub client.
 func NewGitProvider(logger polylog.Logger, cfg gitCfg.Config) (*Provider, error) {
+	// Validate the provided Git configuration.
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid git config: %w", err)
 	}
 
+	// Create and return a new Provider with the authenticated GitHub client.
 	return &Provider{
 		logger: logger,
 		Client: github.NewClient(nil).WithAuthToken(cfg.PersonalAccessToken),
 	}, nil
 }
 
+// PullRequestConfig holds configuration options for creating a pull request.
 type PullRequestConfig struct {
-	TargetBranch string
-	Title        string
-	Body         string
-	Draft        bool
-	Issue        int
+	TargetBranch string // The target branch for the pull request.
+	Title        string // The title of the pull request.
+	Body         string // The body/description of the pull request.
+	Draft        bool   // Indicates whether the PR should be created as a draft.
+	Issue        int    // Optional issue number to associate with the PR.
 }
 
+// IsValid checks if the pull request configuration is valid.
+// It ensures that TargetBranch, Title, and Body are not empty.
 func (cfg PullRequestConfig) IsValid() error {
 	if cfg.TargetBranch == "" {
 		return fmt.Errorf("pull request config error: target branch is required")
@@ -54,27 +85,35 @@ func (cfg PullRequestConfig) IsValid() error {
 	return nil
 }
 
-// CreatePullRequest creates a new pull request on GitHub.
+// CreatePullRequest creates a new pull request on GitHub using the provided configuration.
+// It validates the configuration, retrieves repository metadata, pushes the current branch,
+// and makes an API call to create the PR.
+//
+// Returns the created pull request on success.
 func (p *Provider) CreatePullRequest(ctx context.Context, cfg PullRequestConfig) (*github.PullRequest, error) {
+	// Validate the pull request configuration.
 	if err := cfg.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid pull request config: %w", err)
 	}
 
+	// Retrieve the current repository name.
 	repoName, err := p.getCurrentRepoName()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo name: %w", err)
 	}
 
+	// Retrieve the current branch name.
 	currentBranchName, err := p.getCurrentBranchName()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current branch name: %w", err)
 	}
-	// Push branch to remove to ensure the branch exists on the remote and is up to date
+	// Ensure the current branch is pushed to the remote repository.
 	err = p.PushBranchToRemote(currentBranchName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to push branch to remote: %w", err)
 	}
 
+	// Construct the new pull request payload.
 	newPR := &github.NewPullRequest{
 		Head:  github.Ptr(currentBranchName),
 		Base:  github.Ptr(cfg.TargetBranch),
@@ -82,65 +121,68 @@ func (p *Provider) CreatePullRequest(ctx context.Context, cfg PullRequestConfig)
 		Body:  github.Ptr(cfg.Body),
 		Draft: github.Ptr(cfg.Draft),
 	}
+	// If an issue number is provided, include it.
 	if cfg.Issue != 0 {
 		newPR.Issue = github.Ptr(cfg.Issue)
 	}
 
+	// Create the pull request via GitHub's API.
 	pr, _, err := p.PullRequests.Create(ctx, repoOwner, repoName, newPR)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to create pull request")
 		return nil, fmt.Errorf("failed to create pull request: %w", err)
 	}
 
+	// Log the URL of the created pull request.
 	p.logger.Info().Str("url", pr.GetHTMLURL()).Msg("created pull request")
 	return pr, nil
 }
 
-// PushBranchToRemote pushes the specified branch to the remote repository using the stored PAT.
+// PushBranchToRemote pushes the specified branch to the remote repository using the stored personal access token.
+// It constructs and executes the "git push" command.
 func (p *Provider) PushBranchToRemote(branchName string) error {
-	// Construct the git push command
+	// Construct the git push command.
 	cmd := exec.Command("git", "push", "origin", branchName)
 
-	// Run the command and capture the output
+	// Execute the command and capture output.
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to push branch to remote: %w\nOutput: %s", err, string(output))
 	}
 
+	// Log success.
 	p.logger.Info().Msgf("Branch %s pushed to remote successfully", branchName)
 	return nil
 }
 
-// The below commands are used to generate a diff between the current branch and the target branch.
+// Below are command templates and constants used to generate a unified diff.
+// These commands are combined and sent to an LLM to provide context for the diff generation.
 const (
-	// gitDiffCmdTemplate generates a diff between the current branch and the target branch
-	// using the --unified=0 flag to show only the changed lines with zero context.
-	// It runs the command in the specified repository root.
+	// gitDiffCmdTemplate generates a diff for the repository using the given repository root and target branch.
 	gitDiffCmdTemplate = `git -C %s --no-pager diff %s --unified=0 -- .`
 	// grepCmd filters out metadata lines from the diff output.
-	// It removes lines starting with 'diff --git', 'index ', and '@@' (hunk headers).
 	grepCmd = `grep -vE '^(diff --git|index |@@)'`
-	// sedCmd reformats file header lines in the diff output.
-	// It changes '--- a/' to 'Old File: ' and '+++ b/' to 'New File: ',
-	// providing clearer context for changes.
+	// sedCmd reformats file header lines in the diff for better readability.
 	sedCmd = `sed -E 's/^--- a\//Old File: /; s/^\+\+\+ b\//New File: /'`
-	// finalGrepCmd removes any empty lines from the output to minimize noise.
+	// finalGrepCmd removes any remaining empty lines from the diff output.
 	finalGrepCmd = `grep -vE '^$'`
 
-	// Public variable that combines all commands.
-	// It is unused in this package but sent to the LLM to provide context for how the diff was generated.
+	// CombinedDiffCmd aggregates the above commands into one string.
+	// This variable is provided to the LLM for context.
 	CombinedDiffCmd = gitDiffCmdTemplate + " | " + grepCmd + " | " + sedCmd + " | " + finalGrepCmd
 )
 
-// Update GenerateDiff to use the private global variables
+// GenerateDiff creates a unified diff between the current branch and the target branch.
+// It executes multiple shell commands to generate, filter, and format the diff output.
+// The final diff is wrapped in a markdown diff code block.
 func (p *Provider) GenerateDiff(ctx context.Context, targetBranch string) (string, error) {
-	// Get the absolute path of the repository root
+	// Obtain the repository root directory.
 	repoRoot, err := p.getRepoRoot()
 	if err != nil {
 		return "", fmt.Errorf("failed to get repository root: %w", err)
 	}
 
-	// Step 1: Run git diff
+	// Build the git diff command.
 	gitDiffCmd := fmt.Sprintf(gitDiffCmdTemplate, repoRoot, targetBranch)
 	p.logger.Info().Msgf("Executing git diff command: %s", gitDiffCmd)
 	gitDiffOutput, err := exec.Command("bash", "-c", gitDiffCmd).CombinedOutput()
@@ -148,108 +190,109 @@ func (p *Provider) GenerateDiff(ctx context.Context, targetBranch string) (strin
 		return "", fmt.Errorf("failed to execute git diff command: %v\nOutput: %s", err, string(gitDiffOutput))
 	}
 
-	// Step 2: Apply grep filter
-	grepCmd := exec.Command("bash", "-c", grepCmd)
-	grepCmd.Stdin = bytes.NewReader(gitDiffOutput)
-	grepOutput, err := grepCmd.CombinedOutput()
+	// Filter the diff output to remove unwanted metadata lines using grep.
+	grepCmdProc := exec.Command("bash", "-c", grepCmd)
+	grepCmdProc.Stdin = bytes.NewReader(gitDiffOutput)
+	grepOutput, err := grepCmdProc.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute grep command: %v\nOutput: %s", err, string(grepOutput))
 	}
 
-	// Step 3: Apply sed transformation
-	sedCmd := exec.Command("bash", "-c", sedCmd)
-	sedCmd.Stdin = bytes.NewReader(grepOutput)
-	sedOutput, err := sedCmd.CombinedOutput()
+	// Reformat the output using sed for better clarity.
+	sedCmdProc := exec.Command("bash", "-c", sedCmd)
+	sedCmdProc.Stdin = bytes.NewReader(grepOutput)
+	sedOutput, err := sedCmdProc.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute sed command: %v\nOutput: %s", err, string(sedOutput))
 	}
 
-	// Step 4: Remove empty lines
-	finalGrepCmd := exec.Command("bash", "-c", finalGrepCmd)
-	finalGrepCmd.Stdin = bytes.NewReader(sedOutput)
-	finalOutput, err := finalGrepCmd.CombinedOutput()
+	// Remove any empty lines to minimize noise in the output.
+	finalGrepCmdProc := exec.Command("bash", "-c", finalGrepCmd)
+	finalGrepCmdProc.Stdin = bytes.NewReader(sedOutput)
+	finalOutput, err := finalGrepCmdProc.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute final grep command: %v\nOutput: %s", err, string(finalOutput))
 	}
 
+	// Wrap the final output in a markdown diff code block.
 	wrappedOutput := fmt.Sprintf("```diff\n%s\n```", string(finalOutput))
 	return wrappedOutput, nil
 }
 
 // getRepoRoot returns the absolute path of the repository root.
+// It uses the go-git library to open the repository and locate the worktree.
 func (p *Provider) getRepoRoot() (string, error) {
-	// Get the current working directory
+	// Get the current working directory.
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 
-	// Open the Git repository in the current directory
+	// Open the Git repository based on the current directory.
 	repo, err := git.PlainOpen(dir)
 	if err != nil {
 		return "", err
 	}
 
-	// Get the repository's worktree
+	// Access the repository's worktree.
 	worktree, err := repo.Worktree()
 	if err != nil {
 		return "", err
 	}
 
-	// Get the absolute path of the worktree root
+	// Return the root directory of the repository.
 	repoRoot := worktree.Filesystem.Root()
-
 	return repoRoot, nil
 }
 
-// getCurrentRepoName returns the name of the Git repository in the current directory.
+// getCurrentRepoName returns the name of the current repository.
+// It extracts the repository name from the base directory of the worktree.
 func (p *Provider) getCurrentRepoName() (string, error) {
-	// Get the current working directory
+	// Get the current working directory.
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 
-	// Open the Git repository in the current directory
+	// Open the Git repository.
 	repo, err := git.PlainOpen(dir)
 	if err != nil {
 		return "", err
 	}
 
-	// Get the repository's worktree
+	// Access the worktree.
 	worktree, err := repo.Worktree()
 	if err != nil {
 		return "", err
 	}
 
-	// Get the base name of the worktree directory
+	// Derive and return the repository name from the worktree's root.
 	repoName := filepath.Base(worktree.Filesystem.Root())
-
 	return repoName, nil
 }
 
-// getCurrentBranchName returns the name of the current branch in the Git repository.
+// getCurrentBranchName returns the name of the current branch in the repository.
+// It retrieves the HEAD reference and extracts the branch's short name.
 func (p *Provider) getCurrentBranchName() (string, error) {
-	// Get the current working directory
+	// Get the current directory.
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 
-	// Open the Git repository in the current directory
+	// Open the Git repository.
 	repo, err := git.PlainOpen(dir)
 	if err != nil {
 		return "", err
 	}
 
-	// Get the HEAD reference
+	// Retrieve the repository's HEAD reference.
 	ref, err := repo.Head()
 	if err != nil {
 		return "", err
 	}
 
-	// Extract the branch name from the reference
+	// Extract and return the branch name.
 	branchName := ref.Name().Short()
-
 	return branchName, nil
 }
