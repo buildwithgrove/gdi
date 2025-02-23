@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/cohesion-org/deepseek-go v1.2.3
 	github.com/go-git/go-git/v5 v5.13.2
-	github.com/google/go-github/v69 v69.2.1-0.20250217215601-868f897f6d9d
+	github.com/google/go-github/v69 v69.2.0
 	github.com/liushuangls/go-anthropic/v2 v2.13.1
 	github.com/pokt-network/poktroll v0.0.12
 	github.com/sashabaranov/go-openai v1.37.0
