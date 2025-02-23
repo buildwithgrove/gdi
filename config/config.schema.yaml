@@ -3,28 +3,28 @@ type: object
 additionalProperties: false
 properties:
   git_config:
-    description: "Git configuration."
+    description: "Git configuration. This is used to configure your Git client for creating and pushing commits."
     type: object
     additionalProperties: false
     properties:
       personal_access_token:
-        description: "Personal access token for GitHub."
+        description: "Personal access token for GitHub. It must have at reast `repo` write scope to create pull requests."
         type: string
         pattern: "^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[a-zA-Z0-9_]{36,}$"
   llm_config:
-    description: "LLM configuration."
+    description: "LLM configuration. This is used to configure your LLM providers."
     type: object
     additionalProperties: false
     properties:
       default_llm_provider:
-        description: "The default LLM provider to use."
+        description: "The default LLM provider to use. This may be overriden per-request using the `-p|--provider` flag."
         type: string
         enum:
           - "openai"
           - "deepseek"
           - "anthropic"
       llm_providers:
-        description: "LLM providers configuration."
+        description: "LLM providers configuration. This is used to configure your LLM providers."
         type: object
         additionalProperties: false
         properties:
@@ -36,7 +36,7 @@ properties:
                 description: "API key for OpenAI."
                 type: string
               client_model:
-                description: "Client model for OpenAI."
+                description: "Client model for OpenAI. This may be overriden per-request using the `-m|--model` flag."
                 type: string
                 enum:
                   - "o1-mini"
@@ -51,7 +51,7 @@ properties:
                 description: "API key for DeepSeek."
                 type: string
               client_model:
-                description: "Client model for DeepSeek."
+                description: "Client model for DeepSeek. This may be overriden per-request using the `-m|--model` flag."
                 type: string
                 enum:
                   - "deepseek-chat"
@@ -65,7 +65,7 @@ properties:
                 description: "API key for Anthropic."
                 type: string
               client_model:
-                description: "Client model for Anthropic."
+                description: "Client model for Anthropic. This may be overriden per-request using the `-m|--model` flag."
                 type: string
                 enum:
                   - "claude-3-5-haiku-latest"
