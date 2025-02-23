@@ -113,6 +113,7 @@ func (c *Config) Validate() error {
 				errInvalidOpenAIClientModel.Error(), c.LLMProviders.OpenAI.ClientModel, openai.ListValidModelsStr(),
 			)
 		}
+
 	case ProviderNameDeepSeek:
 		if c.LLMProviders.DeepSeek == nil {
 			return errDeepSeekConfigNotConfigured
@@ -125,6 +126,7 @@ func (c *Config) Validate() error {
 				errInvalidDeepSeekClientModel.Error(), c.LLMProviders.DeepSeek.ClientModel, deepseek.ListValidModelsStr(),
 			)
 		}
+
 	case ProviderNameAnthropic:
 		if c.LLMProviders.Anthropic == nil {
 			return errAnthropicConfigNotConfigured
