@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/buildwithgrove/gdi/cmd/config"
 	"github.com/buildwithgrove/gdi/cmd/git"
 )
 
@@ -34,4 +35,5 @@ func init() {
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
 	rootCmd.AddCommand(git.GitCmd)
+	rootCmd.AddCommand(config.ConfigCmd)
 }
