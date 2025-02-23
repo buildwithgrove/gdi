@@ -1,3 +1,36 @@
+// ---------------------------------------------------------------------------
+// File: root.go
+// Package: config
+//
+// Purpose:
+//
+//	This command implements an interactive configuration editor for the
+//	Grove Developer Interface (GDI). It allows the user to traverse and edit
+//	the YAML configuration file (~/.config.gdi.yaml) interactively, based on the
+//	schema defined in ./config/config.schema.yaml. The command supports editing
+//	of nested fields, enum selection with allowed values (displayed in purple),
+//	and provider-specific validation (e.g., ensuring that a default LLM provider
+//	is properly configured before it can be selected).
+//
+// Features:
+//   - Interactive traversal of config fields with options to "go up" a level.
+//   - Dynamic prompts that display the field's schema description.
+//   - Enum-based selections with allowed values.
+//   - Provider validation: if a default LLM provider is selected which
+//     lacks configuration (api_key or client_model), the user is prompted to fill
+//     in the necessary details. The client_model field uses enum options.
+//   - Colorized output and emojis for improved readability and guidance.
+//   - The ability to save and exit from any prompt by typing 's' (save option) in yellow.
+//   - Clear text prompts for errors, field names, and schema descriptions.
+//
+// Usage:
+//
+//	Running the "gdi config" command will launch the interactive configuration editor.
+//	It supports flags:
+//	   --show (-s): Show the current configuration.
+//	   --editor (-e): Open the configuration in a text editor instead of interactive mode.
+//
+// ---------------------------------------------------------------------------
 package config
 
 import (
@@ -14,16 +47,16 @@ import (
 	"github.com/buildwithgrove/gdi/config"
 )
 
-// ANSI color definitions
+// ANSI color definitions used for colored output.
 const (
 	ColorReset  = "\033[0m"
-	ColorGreen  = "\033[32m"
-	ColorBlue   = "\033[34m"
-	ColorPurple = "\033[35m"
-	ColorWhite  = "\033[37m"
-	ColorYellow = "\033[33m"
-	ColorRed    = "\033[31m"
-	ColorCyan   = "\033[36m"
+	ColorGreen  = "\033[32m" // For prompts/questions and success messages.
+	ColorBlue   = "\033[34m" // For YAML field names and "go up" text.
+	ColorPurple = "\033[35m" // For enum option values.
+	ColorWhite  = "\033[37m" // For schema descriptions and "generic" white text.
+	ColorYellow = "\033[33m" // For save option (always printed as 's').
+	ColorRed    = "\033[31m" // For error messages.
+	ColorCyan   = "\033[36m" // Used for the full "Enter choice" prompt.
 )
 
 var (
@@ -32,36 +65,46 @@ var (
 	schemaMap map[string]interface{}
 )
 
+// init sets up flags for the config command.
 func init() {
 	ConfigCmd.Flags().BoolVarP(&show, "show", "s", false, "Show the configuration.")
 	ConfigCmd.Flags().StringVarP(&editor, "editor", "e", "", "Edit the configuration in the given text editor.")
 }
 
+// ConfigCmd represents the interactive configuration command.
+// The Long description provides detailed usage information.
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Edit the configuration for the application.",
 	Long: `Edit the configuration for the application.
 
-This command will help you edit the configuration YAML file for the application.
-
-The configuration file is located at ~/.config.gdi.yaml.
-
-You can use the --editor flag to open the configuration file in your default text editor.
-
-You can use the --show flag to print the configuration to the console.`,
+This command is used to modify the YAML configuration file for the Grove Developer Interface.
+It uses an interactive command-line interface to traverse and update configuration fields,
+using the schema defined in ./config/config.schema.yaml. You can navigate through nested fields,
+edit values (with enum validation where applicable), and ensure that required fields for providers
+(such as LLM configurations) are appropriately set. You may also choose to save and exit at any
+time by entering the save command.
+	  
+Flags:
+  --show (-s)   : Show the current config file.
+  --editor (-e) : Open the config file in a specified text editor.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Handle the --show flag: print the configuration file.
 		if show {
 			showConfig()
 			return
 		}
+		// Handle the --editor flag: open the file in the given text editor.
 		if editor != "" {
 			editConfig(editor)
 			return
 		}
+		// Otherwise, start the interactive configuration editor.
 		interactiveEditConfigV3()
 	},
 }
 
+// showConfig prints the current configuration file to stdout.
 func showConfig() {
 	data, err := os.ReadFile(config.ConfigFilePath)
 	if err != nil {
@@ -70,6 +113,7 @@ func showConfig() {
 	fmt.Println(string(data))
 }
 
+// editConfig opens the configuration file in the user's preferred text editor.
 func editConfig(editor string) {
 	cmd := exec.Command(editor, config.ConfigFilePath)
 	cmd.Stdin = os.Stdin
@@ -77,6 +121,8 @@ func editConfig(editor string) {
 	cmd.Run()
 }
 
+// interactiveEditConfigV3 launches the interactive editor.
+// It loads the user's configuration, the schema, and continuously prompts for edits.
 func interactiveEditConfigV3() {
 	data, err := os.ReadFile(config.ConfigFilePath)
 	if err != nil {
@@ -89,12 +135,15 @@ func interactiveEditConfigV3() {
 		log.Fatalf(ColorRed+"Failed to unmarshal YAML: %v"+ColorReset, err)
 	}
 
+	// Load the configuration schema from the repository root.
 	loadSchema()
 
+	// Interactive editing loop.
 	for {
 		clearTerminal()
 		editFieldRecursive(configMap, "", configMap)
 
+		// Write out current configuration changes.
 		saveConfigV3(configMap)
 		fmt.Print(ColorGreen + "Do you want to continue editing? (" + ColorWhite + "y/n" + ColorGreen + "/" + ColorYellow + "s" + ColorGreen + " for save and exit): " + ColorReset)
 		var cont string
@@ -111,12 +160,14 @@ func interactiveEditConfigV3() {
 	}
 }
 
+// clearTerminal clears the console for a fresh prompt display.
 func clearTerminal() {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout
 	cmd.Run()
 }
 
+// loadSchema reads the configuration schema from ./config/config.schema.yaml into schemaMap.
 func loadSchema() {
 	schemaFile := "./config/config.schema.yaml"
 	data, err := os.ReadFile(schemaFile)
@@ -129,6 +180,8 @@ func loadSchema() {
 	}
 }
 
+// getEnumOptionsForPath traverses the schema using a dot-delimited field path
+// and returns the allowed enum options (if any) for that field.
 func getEnumOptionsForPath(fieldPath string) []string {
 	parts := strings.Split(fieldPath, ".")
 	properties, ok := schemaMap["properties"].(map[string]interface{})
@@ -166,6 +219,7 @@ func getEnumOptionsForPath(fieldPath string) []string {
 	return nil
 }
 
+// getDescriptionForPath retrieves the description for a given field path from the schema.
 func getDescriptionForPath(fieldPath string) string {
 	parts := strings.Split(fieldPath, ".")
 	properties, ok := schemaMap["properties"].(map[string]interface{})
@@ -193,20 +247,27 @@ func getDescriptionForPath(fieldPath string) string {
 	return ""
 }
 
+// editFieldRecursive interactively allows the user to navigate through and edit fields.
+// It prints prompts with colorized output and emojis, provides a save and exit option, and
+// validates provider configuration if necessary.
 func editFieldRecursive(currentMap map[string]interface{}, path string, topMap map[string]interface{}) {
 	for {
 		clearTerminal()
+		// Print the main field selection prompt with a question emoji.
 		fmt.Println(ColorGreen + "❓ Which field would you like to edit? (or type " + ColorYellow + "s" + ColorGreen + " to save and exit)" + ColorReset)
 
+		// If in a nested level, provide an uncolored option to go up one level.
 		if path != "" {
 			fmt.Println("0. Go up one level")
 		}
 
+		// Build a list of keys within the current map.
 		keys := make([]string, 0, len(currentMap))
 		for k := range currentMap {
 			keys = append(keys, k)
 		}
 
+		// Display each key along with its schema description.
 		for i, key := range keys {
 			fullPath := key
 			if path != "" {
@@ -214,11 +275,13 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 			}
 			desc := getDescriptionForPath(fullPath)
 			if desc != "" {
+				// Field name in blue, description in white.
 				fmt.Printf("%d. "+ColorBlue+"%s"+ColorReset+" - "+ColorWhite+"%s"+ColorReset+"\n", i+1, key, desc)
 			} else {
 				fmt.Printf("%d. "+ColorBlue+"%s"+ColorReset+"\n", i+1, key)
 			}
 		}
+		// Prompt for user input using the new emoji.
 		fmt.Print(ColorCyan + "📝 Enter choice (or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
 		var choiceInput string
 		fmt.Scan(&choiceInput)
@@ -234,23 +297,28 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 			continue
 		}
 
+		// If at nested level and the user selects 0, go up one level.
 		if path != "" && choice == 0 {
 			return
 		}
 
+		// Validate the user's numeric choice.
 		if choice < 1 || choice > len(keys) {
 			fmt.Println(ColorRed + "Invalid choice, please try again." + ColorReset)
 			continue
 		}
 
+		// Determine which key was chosen.
 		selectedKey := keys[choice-1]
 		selectedValue := currentMap[selectedKey]
 		newPath := path + selectedKey
 
 		switch v := selectedValue.(type) {
 		case map[string]interface{}:
+			// Recurse into nested objects.
 			editFieldRecursive(v, newPath+".", topMap)
 		case string, int, bool:
+			// Terminal fields: if enums are defined, display selectable options.
 			enumOptions := getEnumOptionsForPath(newPath)
 			var newValue string
 			if len(enumOptions) > 0 {
@@ -275,6 +343,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 					newValue = enumOptions[choiceNum-1]
 				}
 			} else {
+				// Freeform input for terminal fields.
 				fmt.Print(ColorCyan + "📝 Enter new value for " + ColorBlue + newPath + ColorCyan + " (or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
 				fmt.Scan(&newValue)
 				if strings.ToLower(newValue) == "s" {
@@ -287,6 +356,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 				currentMap[selectedKey] = newValue
 			}
 
+			// Provider validation: for llm_config.default_llm_provider, ensure provider details are set.
 			if newPath == "llm_config.default_llm_provider" {
 				llmConfRaw, ok := topMap["llm_config"]
 				if !ok {
@@ -307,8 +377,10 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 						if provConf, ok := providerConfRaw.(map[string]interface{}); ok {
 							apiKey, _ := provConf["api_key"].(string)
 							clientModel, _ := provConf["client_model"].(string)
+							// If either api_key or client_model is missing, prompt the user.
 							if apiKey == "" || clientModel == "" {
 								fmt.Printf(ColorRed+"Provider %s is not fully configured."+ColorReset+"\n", newValue)
+								// Prompt for api_key if missing.
 								if apiKey == "" {
 									fmt.Print(ColorCyan + "📝 Enter api_key for " + ColorBlue + newValue + ColorCyan + " (or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
 									var apiKeyInput string
@@ -324,6 +396,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 									}
 									provConf["api_key"] = apiKeyInput
 								}
+								// Prompt for client_model using enum options if missing.
 								if clientModel == "" {
 									fieldPath := "llm_config.llm_providers." + newValue + ".client_model"
 									enumOptions := getEnumOptionsForPath(fieldPath)
@@ -363,6 +436,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 									}
 									provConf["client_model"] = clientModelInput
 								}
+								// Save after provider configuration is complete.
 								saveConfigV3(topMap)
 							}
 						} else {
@@ -376,6 +450,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 				}
 			}
 
+			// Save config after any terminal field edit and prompt for further action.
 			saveConfigV3(topMap)
 			fmt.Print(ColorGreen + "Do you want to continue editing? (" + ColorWhite + "y/n" + ColorGreen + "/" + ColorYellow + "s" + ColorGreen + " for save and exit): " + ColorReset)
 			var cont string
@@ -395,6 +470,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 	}
 }
 
+// saveConfigV3 writes the updated configuration map to the config file.
 func saveConfigV3(configMap map[string]interface{}) {
 	file, err := os.Create(config.ConfigFilePath)
 	if err != nil {
