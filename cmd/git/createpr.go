@@ -1,4 +1,4 @@
-package cmd
+package git
 
 import (
 	"context"
@@ -12,27 +12,29 @@ import (
 
 	"github.com/buildwithgrove/gdi/config"
 	llmCfg "github.com/buildwithgrove/gdi/config/llm"
-	gitPkg "github.com/buildwithgrove/gdi/git"
-	llmPkg "github.com/buildwithgrove/gdi/llm"
+	"github.com/buildwithgrove/gdi/git"
+	"github.com/buildwithgrove/gdi/llm"
 )
 
+// Git config flags
 var prTitle string
 var targetBranch string
 var issue int
 var dummy bool
 
+// LLM config flags
 var llmProviderOverride string
 var llmModelOverride string
 
 func init() {
 	// Git config flags
-	createprCmd.Flags().StringVarP(&prTitle, "pr-title", "t", "", "PR title [REQUIRED]")
-	createprCmd.Flags().StringVarP(&targetBranch, "target-branch", "b", "main", "Target branch [OPTIONAL, defaults to 'main']")
-	createprCmd.Flags().IntVarP(&issue, "issue", "i", 0, "Issue number [OPTIONAL]")
+	createprCmd.Flags().StringVarP(&prTitle, "pr-title", "t", "", "PR title to open the PR with. Should be descriptive and contain relevant tags. [REQUIRED]")
+	createprCmd.Flags().StringVarP(&targetBranch, "target-branch", "b", "main", "Target branch to open the PR on. [OPTIONAL, defaults to 'main']")
+	createprCmd.Flags().IntVarP(&issue, "issue", "i", 0, "Issue number to assign to the PR. [OPTIONAL]")
 	createprCmd.Flags().BoolVarP(&dummy, "dummy", "d", false, "Dummy mode. If true, the command will not create a PR but will only print the PR description and copy to clipboard [OPTIONAL, defaults to 'false']")
 	// LLM config flags
-	createprCmd.Flags().StringVarP(&llmProviderOverride, "provider-override", "p", "", "LLM provider override [OPTIONAL]")
-	createprCmd.Flags().StringVarP(&llmModelOverride, "model-override", "m", "", "LLM model override [OPTIONAL]")
+	createprCmd.Flags().StringVarP(&llmProviderOverride, "provider-override", "p", "", "LLM provider override. If set the default provider in the config will be overridden. [OPTIONAL]")
+	createprCmd.Flags().StringVarP(&llmModelOverride, "model-override", "m", "", "LLM model override. If set the default model in the config will be overridden. [OPTIONAL]")
 
 }
 
@@ -61,7 +63,7 @@ open a PR on GitHub to the main branch or a specified target branch.`,
 		}
 
 		// Initialize Git provider.
-		gitProvider, err := gitPkg.NewGitProvider(logger, *config.Git)
+		gitProvider, err := git.NewGitProvider(logger, *config.Git)
 		if err != nil {
 			log.Fatalf("failed to create git provider: %v", err)
 		}
@@ -77,7 +79,7 @@ open a PR on GitHub to the main branch or a specified target branch.`,
 			Str("dummy", fmt.Sprintf("%t", dummy)).Msg("Initialization successful. Running Create PR command.")
 
 		// Generate diff.
-		diff, err := gitProvider.GenerateDiff(context.Background(), "llm-provider-and-config")
+		diff, err := gitProvider.GenerateDiff(context.Background(), targetBranch)
 		if err != nil {
 			log.Fatalf("failed to generate diff: %v", err)
 		}
@@ -95,17 +97,21 @@ open a PR on GitHub to the main branch or a specified target branch.`,
 		// Add the sanity checklist to the PR description.
 		prDescription := buildPRDescription(response)
 
+		// If dummy is true, print the PR description to the console
+		// and copy to clipboard instead of creating a PR.
 		if dummy {
 			err := clipboard.Init()
 			if err != nil {
 				log.Fatalf("failed to initialize clipboard: %v", err)
 			}
-			fmt.Printf("PR Description:\n\n%s", prDescription)
+			fmt.Printf("PR Description:\n\n%s\n", prDescription)
 			clipboard.Write(clipboard.FmtText, []byte(prDescription))
+			logger.Info().Msg("PR description copied to clipboard. PR not created.")
 			return
 		}
 
-		pullRequestConfig := gitPkg.PullRequestConfig{
+		// If dummy is false (which is the default), create the PR on Github.
+		pullRequestConfig := git.PullRequestConfig{
 			TargetBranch: targetBranch,
 			Title:        prTitle,
 			Body:         prDescription,
@@ -119,25 +125,30 @@ open a PR on GitHub to the main branch or a specified target branch.`,
 			log.Fatalf("failed to create pull request: %v", err)
 		}
 
+		// Log the PR URL.
 		fmt.Printf("Pull request created: %s\n", *pullRequest.HTMLURL)
 	},
 }
 
+/*--------- LLM Provider and Prompt Flags ---------*/
+
+// GetProviderFlags returns the LLM provider flags, which will modify the LLM config.
 func getProviderFlags() []llmCfg.ProviderFlag {
 	var flags []llmCfg.ProviderFlag
 
 	if llmProviderOverride != "" {
-		flags = append(flags, llmCfg.WithLLMProviderOverride(llmCfg.LLMProviderType(llmProviderOverride)))
+		flags = append(flags, llmCfg.WithProviderOverride(llmCfg.ProviderType(llmProviderOverride)))
 	}
 
 	return flags
 }
 
-func getPromptFlags() []llmPkg.PromptFlag {
-	var flags []llmPkg.PromptFlag
+// GetPromptFlags returns the LLM prompt flags, which will modify the LLM prompt config.
+func getPromptFlags() []llm.PromptFlag {
+	var flags []llm.PromptFlag
 
 	if llmModelOverride != "" {
-		flags = append(flags, llmPkg.WithLLMModelOverride(llmModelOverride))
+		flags = append(flags, llm.WithLLMModelOverride(llmModelOverride))
 	}
 
 	return flags
@@ -145,14 +156,20 @@ func getPromptFlags() []llmPkg.PromptFlag {
 
 /*--------- Prompt Construction ---------*/
 
+// BuildPrompt builds the prompt for the LLM.
+// It appends the diff to the prompt and returns the prompt as a string.
 func buildPrompt(prTitle, diff string) string {
-	return fmt.Sprintf(promptIntro, gitPkg.GenDiffCmdTemplate, prTitle, diff)
+	return fmt.Sprintf(promptIntro, git.CombinedDiffCmd, prTitle, diff)
 }
 
+// IsDraft checks if the PR title contains the word "DRAFT".
+// If so the PR will be created as a draft.
 func isDraft(prTitle string) bool {
 	return strings.Contains(strings.ToUpper(prTitle), "DRAFT")
 }
 
+// BuildPRDescription builds the PR description from the LLM response.
+// It adds a sanity checklist to the PR description and returns the PR description as a string.
 func buildPRDescription(summary string) string {
 	return fmt.Sprintf(prDescription, summary)
 }
@@ -163,7 +180,7 @@ const promptIntro = `Please generate a GitHub PR description from the following 
 
 		%s
 
-		Where the first %\s is the repo root and the second %\s is the target branch.
+		Where the first 's' is the repo root and the second 's' is the target branch.
 
 		The generated description should be in the following template format.
 		It should output ONLY the template inside the --- BEGIN PR TEMPLATE --- and --- END PR TEMPLATE --- tags.

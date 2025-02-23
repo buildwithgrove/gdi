@@ -7,9 +7,6 @@ properties:
     type: object
     additionalProperties: false
     properties:
-      owner_name:
-        description: "The name of the repository owner."
-        type: string
       personal_access_token:
         description: "Personal access token for GitHub."
         type: string

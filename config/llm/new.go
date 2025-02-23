@@ -10,9 +10,9 @@ import (
 	"github.com/pokt-network/poktroll/pkg/polylog"
 )
 
-type ProviderFlag func(cfg *LLMConfig)
-
-func NewLLMProvider(logger polylog.Logger, llmConfig *LLMConfig, flags ...ProviderFlag) (llm.LLMProvider, error) {
+// NewLLMProvider creates a new LLM provider based on the config.
+// It will validate the config only after any flags are applied.
+func NewLLMProvider(logger polylog.Logger, llmConfig *Config, flags ...ProviderFlag) (llm.LLMProvider, error) {
 	for _, flag := range flags {
 		flag(llmConfig)
 	}
@@ -51,8 +51,12 @@ func NewLLMProvider(logger polylog.Logger, llmConfig *LLMConfig, flags ...Provid
 	}
 }
 
-func WithLLMProviderOverride(provider LLMProviderType) ProviderFlag {
-	return func(cfg *LLMConfig) {
+// ProviderFlag is a function that modifies the LLM config.
+type ProviderFlag func(cfg *Config)
+
+// WithProviderOverride is a ProviderFlag func that overrides the default LLM provider.
+func WithProviderOverride(provider ProviderType) ProviderFlag {
+	return func(cfg *Config) {
 		cfg.DefaultLLMProvider = provider
 	}
 }
