@@ -23,6 +23,7 @@ package git
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -37,6 +38,13 @@ import (
 
 // Constant representing the GitHub repository owner.
 const repoOwner = "buildwithgrove"
+
+var (
+	// Suggest configuring a valid Personal Access Token for GitHub if attempting to perform operations on a private repository.
+	suggestConfiguringPAT = "If the failure is due to a missing or invalid Personal Access Token, configure a valid Personal Access Token for GitHub in your config file.\nYou may do so by running `gdi config`."
+
+	errPullRequestFailed = errors.New("git error: pull request failed")
+)
 
 // Provider represents a Git provider that encapsulates a GitHub client
 // and a logger. It provides methods to create pull requests and to
@@ -54,10 +62,20 @@ func NewGitProvider(logger polylog.Logger, cfg gitCfg.Config) (*Provider, error)
 		return nil, fmt.Errorf("invalid git config: %w", err)
 	}
 
+	client := github.NewClient(nil)
+	// Valid  Personal Access Token is required if performing actions on a private repository.
+	// If no token is provided, the client will be unauthenticated.
+	if cfg.PersonalAccessToken != "" {
+		client = github.NewClient(nil).WithAuthToken(cfg.PersonalAccessToken)
+		logger.Info().Msg("Performing Git operations with Authenticated GitHub Client")
+	} else {
+		logger.Info().Msg("Performing Git operations with Unauthenticated GitHub Client")
+	}
+
 	// Create and return a new Provider with the authenticated GitHub client.
 	return &Provider{
 		logger: logger,
-		Client: github.NewClient(nil).WithAuthToken(cfg.PersonalAccessToken),
+		Client: client,
 	}, nil
 }
 
@@ -130,7 +148,7 @@ func (p *Provider) CreatePullRequest(ctx context.Context, cfg PullRequestConfig)
 	pr, _, err := p.PullRequests.Create(ctx, repoOwner, repoName, newPR)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to create pull request")
-		return nil, fmt.Errorf("failed to create pull request: %w", err)
+		return nil, fmt.Errorf("%s: %w\n%s", errPullRequestFailed, err, suggestConfiguringPAT)
 	}
 
 	// Log the URL of the created pull request.
