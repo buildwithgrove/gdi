@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../config.schema.yaml
+llm_config:
+  default_llm_provider: openai
+  llm_providers:
+    openai:
+      api_key: "your-openai-api-key"
+      client_model: "gpt-4o"
+    deepseek:
+      api_key: "your-deepseek-api-key"
+      client_model: "deepseek-coder"
+    anthropic:
+      api_key: "your-anthropic-api-key"
+      client_model: "claude-3-5-haiku-latest"
+
