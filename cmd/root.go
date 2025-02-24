@@ -4,15 +4,15 @@
 //
 // Overview:
 //
-//	The 🌿 Grove Developer Interface (GDI) 🌿 is a command-line tool designed to streamline
-//	internal developer workflows at Grove. GDI helps developers quickly perform routine
-//	tasks and maintain consistency across projects.
+// The 🌿 Grove Developer Interface (GDI) 🌿 is a command-line tool designed to streamline
+// internal developer workflows at Grove. GDI is intended to help developers quickly perform
+// routine operations and maintain consistency across projects.
 //
 // DEV_NOTE:
 //
-//	This repo is also intended to be a living project and should be updated to incorporate
-//	any of your own scripts, hacks, time-saving features that you use in your local
-//	workflows and that you think could benefit the entire team.
+// This repo is also intended to be a living project and should be updated to incorporate
+// any of our own scripts, hacks, time-saving features, etc. that we use in our local
+// development workflows and that could benefit the entire team to share in this CLI
 //
 // ---------------------------------------------------------------------------
 package cmd
