@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../config.schema.yaml
 llm_config:
-  default_llm_provider: deepseek
+  default_llm_provider: openai
   llm_providers:
     openai:
       api_key: "your-openai-api-key"
