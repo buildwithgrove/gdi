@@ -14,7 +14,7 @@ import (
 const configFileName = ".config.gdi.yaml"
 
 // eg. /Users/greg/.config.gdi.yaml
-var configFilePath = fmt.Sprintf("%s/%s", os.Getenv("HOME"), configFileName)
+var ConfigFilePath = fmt.Sprintf("%s/%s", os.Getenv("HOME"), configFileName)
 
 // Config represents the configuration for LLM providers and Git.
 type Config struct {
@@ -24,7 +24,7 @@ type Config struct {
 
 // LoadConfig loads the configuration from a YAML file.
 func LoadConfig() (*Config, error) {
-	file, err := os.Open(configFilePath)
+	file, err := os.Open(ConfigFilePath)
 	if err != nil {
 		return nil, err
 	}

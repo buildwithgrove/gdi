@@ -1,6 +1,20 @@
-/*
-Copyright © 2025 Pascal van Leeuwen <pascal@grove.city>
-*/
+// ---------------------------------------------------------------------------
+// File: root.go
+// Package: cmd
+//
+// Overview:
+//
+//	The 🌿 Grove Developer Interface (GDI) 🌿 is a command-line tool designed to streamline
+//	internal developer workflows at Grove. GDI helps developers quickly perform routine
+//	tasks and maintain consistency across projects.
+//
+// DEV_NOTE:
+//
+//	This repo is also intended to be a living project and should be updated to incorporate
+//	any of your own scripts, hacks, time-saving features that you use in your local
+//	workflows and that you think could benefit the entire team.
+//
+// ---------------------------------------------------------------------------
 package cmd
 
 import (
@@ -8,18 +22,17 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/buildwithgrove/gdi/cmd/config"
 	"github.com/buildwithgrove/gdi/cmd/git"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "gdi",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Grove Developer Interface - streamline your development workflows",
+	Long: `Grove Developer Interface (GDI) is a comprehensive CLI tool designed for internal
+development at Grove. It provides users with a unified approach to manage configuration
+settings, execute Git operations, and interact with integrated LLM providers for tasks
+such as automated pull request generation.`,
 	Version: "0.0.1",
 }
 
@@ -31,7 +44,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
+	rootCmd.Flags().BoolP("toggle", "t", false, "Toggle verbose mode or other options")
 	rootCmd.AddCommand(git.GitCmd)
+	rootCmd.AddCommand(config.ConfigCmd)
 }
