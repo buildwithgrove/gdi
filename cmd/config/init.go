@@ -22,7 +22,7 @@ func ConfigExists() bool {
 }
 
 // RunFirstTimeSetup performs an interactive configuration when the config file does not exist.
-func RunFirstTimeSetup() {
+func RunFirstTimeSetup() error {
 	reader := bufio.NewReader(os.Stdin)
 	clearTerminal()
 	fmt.Println(ColorGreen + "🌿 Welcome to the Grove Developer Interface (GDI)! It looks like this is the first time you're using it." + ColorReset)
@@ -52,7 +52,9 @@ func RunFirstTimeSetup() {
 		}
 	}
 
-	loadSchema()
+	// Load embedded schema. schemaMap var is already defined in root.go
+	configPkg.LoadSchema(&schemaMap)
+
 	llmConfig := make(map[string]interface{})
 	allowedProviders := getEnumOptionsForPath("llm_config.default_llm_provider")
 	if len(allowedProviders) == 0 {
@@ -144,12 +146,14 @@ func RunFirstTimeSetup() {
 	}
 
 	fmt.Println(ColorGreen + "🌿 Configuration completed and saved. You may edit the configuration later by running 'gdi config'." + ColorReset)
+
+	return nil
 }
 
 // promptForProviderConfiguration prompts the user for provider details (api_key and client_model) and returns them as a map.
 func promptForProviderConfiguration(reader *bufio.Reader, provider string) map[string]interface{} {
 	details := make(map[string]interface{})
-	apiKey := readHiddenInput(ColorGreen + "🔑 Enter API key for " + provider + " (input hidden): " + ColorReset)
+	apiKey := readHiddenInput(ColorBlue + "🔑 Enter API key for " + provider + " (input hidden): " + ColorReset)
 	clearTerminal()
 	details["api_key"] = apiKey
 

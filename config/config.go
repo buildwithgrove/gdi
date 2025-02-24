@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 
+	_ "embed"
+
 	"gopkg.in/yaml.v3"
 
 	"github.com/buildwithgrove/gdi/config/git"
@@ -42,4 +44,19 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// Embed the schema file in the binary for use in the config command.
+// This is to allow the schema file to be loaded in the config command,
+// regardless of where the binary is run from.
+//
+//go:embed config.schema.yaml
+var schemaYaml []byte
+
+// LoadSchema loads the embedded schema from the config.schema.yaml file.
+func LoadSchema(schema *map[string]interface{}) error {
+	if err := yaml.Unmarshal(schemaYaml, &schema); err != nil {
+		return err
+	}
+	return nil
 }

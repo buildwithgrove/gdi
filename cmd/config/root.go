@@ -41,6 +41,8 @@ import (
 	"strconv"
 	"strings"
 
+	_ "embed"
+
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
@@ -135,8 +137,8 @@ func interactiveEditConfigV3() {
 		log.Fatalf(ColorRed+"Failed to unmarshal YAML: %v"+ColorReset, err)
 	}
 
-	// Load the configuration schema from the repository root.
-	loadSchema()
+	// Load the configuration schema from the embedded schema.
+	config.LoadSchema(&schemaMap)
 
 	// Interactive editing loop.
 	for {
@@ -165,19 +167,6 @@ func clearTerminal() {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout
 	cmd.Run()
-}
-
-// loadSchema reads the configuration schema from ./config/config.schema.yaml into schemaMap.
-func loadSchema() {
-	schemaFile := "./config/config.schema.yaml"
-	data, err := os.ReadFile(schemaFile)
-	if err != nil {
-		log.Fatalf(ColorRed+"Failed to read schema file at %s: %v"+ColorReset, schemaFile, err)
-	}
-	err = yaml.Unmarshal(data, &schemaMap)
-	if err != nil {
-		log.Fatalf(ColorRed+"Failed to unmarshal schema YAML: %v"+ColorReset, err)
-	}
 }
 
 // getEnumOptionsForPath traverses the schema using a dot-delimited field path
