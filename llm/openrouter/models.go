@@ -11,14 +11,14 @@ type OpenRouterModel string
 // More models can be added as needed from the OpenRouter API site:
 // https://openrouter.ai/models
 const (
-	modelDeepseekChat            OpenRouterModel = OpenRouterModel("deepseek/deepseek-chat")
-	modelDeepseekR1              OpenRouterModel = OpenRouterModel("deepseek/deepseek-r1")
-	modelOpenAIGPT4o             OpenRouterModel = OpenRouterModel("openai/chatgpt-4o-latest")
-	modelOpenAIO1                OpenRouterModel = OpenRouterModel("openai/o1")
-	modelAnthropicClaude37Sonnet OpenRouterModel = OpenRouterModel("anthropic/claude-3.7-sonnet")
-	modelAnthropicClaude35Haiku  OpenRouterModel = OpenRouterModel("anthropic/claude-3.5-haiku")
-	modelAnthropicClaude3Opus    OpenRouterModel = OpenRouterModel("anthropic/claude-3-opus")
-	modelQwenQwenTurbo           OpenRouterModel = OpenRouterModel("qwen/qwen-turbo")
+	modelDeepseekChat            OpenRouterModel = "deepseek/deepseek-chat"
+	modelDeepseekR1              OpenRouterModel = "deepseek/deepseek-r1"
+	modelOpenAIGPT4o             OpenRouterModel = "openai/chatgpt-4o-latest"
+	modelOpenAIO1                OpenRouterModel = "openai/o1"
+	modelAnthropicClaude37Sonnet OpenRouterModel = "anthropic/claude-3.7-sonnet"
+	modelAnthropicClaude35Haiku  OpenRouterModel = "anthropic/claude-3.5-haiku"
+	modelAnthropicClaude3Opus    OpenRouterModel = "anthropic/claude-3-opus"
+	modelQwenQwenTurbo           OpenRouterModel = "qwen/qwen-turbo"
 )
 
 func (m OpenRouterModel) IsValid() bool {
