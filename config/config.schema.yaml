@@ -1,19 +1,26 @@
 description: "Grove Developer Interface Configuration YAML: this file is used to configure the Grove Developer Interface."
 type: object
+required:
+  - llm_config
 additionalProperties: false
 properties:
   git_config:
     description: "Git configuration."
     type: object
+    required:
+      - personal_access_token
     additionalProperties: false
     properties:
       personal_access_token:
-        description: "Personal access token for GitHub."
+        description: "Valid Personal Access Token for GitHub. Required if performing actions on a private repository. Should have at least `write` scope for `repo`."
         type: string
         pattern: "^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[a-zA-Z0-9_]{36,}$"
   llm_config:
     description: "LLM configuration."
     type: object
+    required:
+      - default_llm_provider
+      - llm_providers
     additionalProperties: false
     properties:
       default_llm_provider:
@@ -26,10 +33,18 @@ properties:
       llm_providers:
         description: "LLM providers configuration."
         type: object
+        anyOf:
+          - required: ["openai"]
+          - required: ["deepseek"]
+          - required: ["anthropic"]
         additionalProperties: false
         properties:
           openai:
+            description: "OpenAI configuration."
             type: object
+            required:
+              - api_key
+              - client_model
             additionalProperties: false
             properties:
               api_key:
@@ -44,7 +59,11 @@ properties:
                   - "o3-mini"
                   - "gpt-4o"
           deepseek:
+            description: "DeepSeek configuration."
             type: object
+            required:
+              - api_key
+              - client_model
             additionalProperties: false
             properties:
               api_key:
@@ -58,7 +77,11 @@ properties:
                   - "deepseek-coder"
                   - "deepseek-reasoner"
           anthropic:
+            description: "Anthropic configuration."
             type: object
+            required:
+              - api_key
+              - client_model
             additionalProperties: false
             properties:
               api_key:
@@ -71,3 +94,5 @@ properties:
                   - "claude-3-5-haiku-latest"
                   - "claude-3-5-sonnet-latest"
                   - "claude-3-opus-20240229"
+
+
