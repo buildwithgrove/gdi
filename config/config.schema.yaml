@@ -113,11 +113,10 @@ properties:
                 enum:
                   - "deepseek/deepseek-chat"
                   - "deepseek/deepseek-r1"
+                  - "perplexity/r1-1776"
                   - "openai/chatgpt-4o-latest"
                   - "openai/o1"
                   - "anthropic/claude-3.7-sonnet"
                   - "anthropic/claude-3.5-haiku"
                   - "anthropic/claude-3-opus"
                   - "qwen/qwen-turbo"
-
-

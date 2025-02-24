@@ -37,7 +37,7 @@ func ListValidModelsStr() string {
 		modelO3Mini,
 		modelGPT4o,
 	} {
-		models = append(models, string(model))
+		models = append(models, "- "+string(model))
 	}
 	return strings.Join(models, "\n")
 }
