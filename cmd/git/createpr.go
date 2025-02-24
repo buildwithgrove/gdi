@@ -161,8 +161,7 @@ Flags:
 			log.Fatalf("failed to create pull request: %v", err)
 		}
 
-		// Output the URL of the created PR.
-		fmt.Printf("Pull request created: %s\n", *pullRequest.HTMLURL)
+		fmt.Printf("✅ Pull request # %d created Successfully!\n🌿 Pull Request URL: %s\n", *pullRequest.Number, *pullRequest.HTMLURL)
 	},
 }
 
@@ -223,8 +222,10 @@ const promptIntro = `Please generate a GitHub PR description from the following 
 
 		Where the first 's' is the repo root and the second 's' is the target branch.
 
+		Format:
 		The generated description should be in the following template format.
 		It should output ONLY the template inside the --- BEGIN PR TEMPLATE --- and --- END PR TEMPLATE --- tags.
+		Do not include the BEGIN and END tags in the output.
 		Use as many Primary and Secondary changes as you feel are valid to capture the changes in the diff.
 
 		--- BEGIN PR TEMPLATE (do not include this line in the output) ---
@@ -241,6 +242,7 @@ const promptIntro = `Please generate a GitHub PR description from the following 
 		### 🍃 Secondary changes:
 		- < secondary changes # 1 >
 		- < secondary changes # 2 >
+		- ...
 
 		--- END PR TEMPLATE (do not include this line in the output) ---
 
@@ -256,6 +258,7 @@ const promptIntro = `Please generate a GitHub PR description from the following 
 		- Primary changes are what the PR is all about
 		- Secondary changes include misc changes (e.g. documentation updates, etc)
 		- Limit the number of bullets to 3-5
+		- Do not include backticks or markdown formatting in the output
 
 		Diff:
 
