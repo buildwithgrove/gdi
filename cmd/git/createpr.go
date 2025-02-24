@@ -51,7 +51,7 @@ var llmModelOverride string
 
 func init() {
 	// Initialize Git-related flags.
-	createprCmd.Flags().StringVarP(&prTitle, "pr-title", "t", "", "PR title to open the PR with. Should be descriptive and contain relevant tags. [REQUIRED]")
+	createprCmd.Flags().StringVarP(&prTitle, "pr-title", "t", "", "PR title to open the PR with. Should be descriptive and contain relevant tags. Will open a draft PR if the string contains [DRAFT] or [WIP]. [REQUIRED]")
 	createprCmd.Flags().StringVarP(&targetBranch, "target-branch", "b", "main", "Target branch to open the PR on. [OPTIONAL, defaults to 'main']")
 	createprCmd.Flags().IntVarP(&issue, "issue", "i", 0, "Issue number to assign to the PR. [OPTIONAL]")
 	createprCmd.Flags().BoolVarP(&dummy, "dummy", "d", false, "Dummy mode. If true, the command will not create a PR but will only print the PR description and copy to clipboard [OPTIONAL, defaults to 'false']")
@@ -203,7 +203,8 @@ func buildPrompt(prTitle, diff string) string {
 // isDraft checks if the PR title contains "DRAFT" (case-insensitive).
 // If it does, the PR will be created as a draft.
 func isDraft(prTitle string) bool {
-	return strings.Contains(strings.ToUpper(prTitle), "DRAFT")
+	return strings.Contains(strings.ToUpper(prTitle), "DRAFT") ||
+		strings.Contains(strings.ToUpper(prTitle), "WIP")
 }
 
 // buildPRDescription builds the final PR description from the LLM response.
