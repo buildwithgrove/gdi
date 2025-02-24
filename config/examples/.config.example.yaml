@@ -13,3 +13,6 @@ llm_config:
     anthropic:
       api_key: "your-anthropic-api-key"
       client_model: "claude-3-5-haiku-latest"
+    openrouter:
+      api_key: "your-openrouter-api-key"
+      client_model: "deepseek/deepseek-chat"

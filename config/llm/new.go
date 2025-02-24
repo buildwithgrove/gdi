@@ -7,6 +7,7 @@ import (
 	"github.com/buildwithgrove/gdi/llm/anthropic"
 	"github.com/buildwithgrove/gdi/llm/deepseek"
 	"github.com/buildwithgrove/gdi/llm/openai"
+	"github.com/buildwithgrove/gdi/llm/openrouter"
 	"github.com/pokt-network/poktroll/pkg/polylog"
 )
 
@@ -44,6 +45,13 @@ func NewLLMProvider(logger polylog.Logger, llmConfig *Config, flags ...ProviderF
 			Logger:      logger,
 			APIKey:      llmConfig.LLMProviders.Anthropic.APIKey,
 			ClientModel: llmConfig.LLMProviders.Anthropic.ClientModel,
+		}), nil
+
+	case ProviderNameOpenRouter:
+		return openrouter.NewOpenRouterProvider(openrouter.Config{
+			Logger:      logger,
+			APIKey:      llmConfig.LLMProviders.OpenRouter.APIKey,
+			ClientModel: llmConfig.LLMProviders.OpenRouter.ClientModel,
 		}), nil
 
 	default:
