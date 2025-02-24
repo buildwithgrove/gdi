@@ -1,3 +1,30 @@
+// ---------------------------------------------------------------------------
+// File: init.go
+// Package: config
+//
+// Purpose:
+//
+//	This command implements the first-time setup configuration for the
+//	Grove Developer Interface (GDI). It runs when no configuration file exists
+//	and guides the user through initial setup, including:
+//	  - Git configuration (optional)
+//	  - LLM provider selection and configuration
+//	  - API key setup for selected providers
+//
+// Features:
+//   - Interactive prompts with colorized output and emojis
+//   - Hidden input for sensitive values (API keys, PATs)
+//   - Enum-based selection for LLM providers and models
+//   - Validation of required fields
+//   - Clear terminal between prompts for better readability
+//   - Automatic creation of configuration file after setup
+//
+// Usage:
+//
+//	This command runs automatically when no configuration file is found.
+//	It can be triggered manually by deleting ~/.config.gdi.yaml and running GDI.
+//
+// ---------------------------------------------------------------------------
 package config
 
 import (
@@ -8,7 +35,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 
 	configPkg "github.com/buildwithgrove/gdi/config"
@@ -186,15 +212,4 @@ func promptForProviderConfiguration(reader *bufio.Reader, provider string) map[s
 		details["client_model"] = clientModel
 	}
 	return details
-}
-
-// Add helper function to read hidden input using golang.org/x/term
-func readHiddenInput(prompt string) string {
-	fmt.Print(prompt)
-	byteInput, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		log.Fatalf(ColorRed+"Failed to read hidden input: %v"+ColorReset, err)
-	}
-	fmt.Println("")
-	return strings.TrimSpace(string(byteInput))
 }
