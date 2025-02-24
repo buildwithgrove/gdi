@@ -202,7 +202,7 @@ func (p *Provider) GenerateDiff(ctx context.Context, targetBranch string) (strin
 
 	// Build the git diff command.
 	gitDiffCmd := fmt.Sprintf(gitDiffCmdTemplate, repoRoot, targetBranch)
-	p.logger.Info().Msgf("Executing git diff command: %s", gitDiffCmd)
+	p.logger.Info().Msgf("Executing git diff command ...")
 	gitDiffOutput, err := exec.Command("bash", "-c", gitDiffCmd).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute git diff command: %v\nOutput: %s", err, string(gitDiffOutput))

@@ -58,7 +58,7 @@ func (p *OpenRouterProvider) SendPrompt(ctx context.Context, prompt string, flag
 		},
 	}
 
-	p.logger.With("model", openrouter.DeepseekV3).Info().Msg("Sending prompt to OpenRouter ...")
+	p.logger.With("model", openrouterModel).Info().Msg("Sending prompt to OpenRouter ...")
 
 	resp, err := p.client.CreateChatCompletion(ctx, req)
 	if err != nil {
