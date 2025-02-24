@@ -4,15 +4,15 @@
 //
 // Overview:
 //
-//	The 🌿 Grove Developer Interface (GDI) 🌿 is a command-line tool designed to streamline
-//	internal developer workflows at Grove. GDI helps developers quickly perform routine
-//	tasks and maintain consistency across projects.
+// The 🌿 Grove Developer Interface (GDI) 🌿 is a command-line tool designed to streamline
+// internal developer workflows at Grove. GDI is intended to help developers quickly perform
+// routine operations and maintain consistency across projects.
 //
 // DEV_NOTE:
 //
-//	This repo is also intended to be a living project and should be updated to incorporate
-//	any of your own scripts, hacks, time-saving features that you use in your local
-//	workflows and that you think could benefit the entire team.
+// This repo is also intended to be a living project and should be updated to incorporate
+// any of our own scripts, hacks, time-saving features, etc. that we use in our local
+// development workflows and that could benefit the entire team to share in this CLI
 //
 // ---------------------------------------------------------------------------
 package cmd
@@ -30,21 +30,25 @@ var rootCmd = &cobra.Command{
 	Use:   "gdi",
 	Short: "Grove Developer Interface - streamline your development workflows",
 	Long: `Grove Developer Interface (GDI) is a comprehensive CLI tool designed for internal
-development at Grove. It provides users with a unified approach to manage configuration
-settings, execute Git operations, and interact with integrated LLM providers for tasks
-such as automated pull request generation.`,
+	development at Grove. It provides users with a unified approach to manage configuration
+	settings, execute Git operations, and interact with integrated LLM providers for tasks
+	such as automated pull request generation.`,
 	Version: "0.0.1",
-}
-
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
 }
 
 func init() {
 	rootCmd.Flags().BoolP("toggle", "t", false, "Toggle verbose mode or other options")
 	rootCmd.AddCommand(git.GitCmd)
 	rootCmd.AddCommand(config.ConfigCmd)
+
+	if !config.ConfigExists() {
+		config.RunFirstTimeSetup()
+		return
+	}
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

@@ -42,6 +42,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 
 	"github.com/buildwithgrove/gdi/config"
@@ -87,7 +88,7 @@ time by entering the save command.
 	  
 Flags:
   --show (-s)   : Show the current config file.
-  --editor (-e) : Open the config file in a specified text editor.`,
+  --editor (-e) : Open the config file in a specified text editor. For example, 'gdi config --editor nano' will open the config file in nano.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Handle the --show flag: print the configuration file.
 		if show {
@@ -135,8 +136,8 @@ func interactiveEditConfigV3() {
 		log.Fatalf(ColorRed+"Failed to unmarshal YAML: %v"+ColorReset, err)
 	}
 
-	// Load the configuration schema from the repository root.
-	loadSchema()
+	// Load the configuration schema from the embedded schema.
+	config.LoadSchema(&schemaMap)
 
 	// Interactive editing loop.
 	for {
@@ -165,19 +166,6 @@ func clearTerminal() {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout
 	cmd.Run()
-}
-
-// loadSchema reads the configuration schema from ./config/config.schema.yaml into schemaMap.
-func loadSchema() {
-	schemaFile := "./config/config.schema.yaml"
-	data, err := os.ReadFile(schemaFile)
-	if err != nil {
-		log.Fatalf(ColorRed+"Failed to read schema file at %s: %v"+ColorReset, schemaFile, err)
-	}
-	err = yaml.Unmarshal(data, &schemaMap)
-	if err != nil {
-		log.Fatalf(ColorRed+"Failed to unmarshal schema YAML: %v"+ColorReset, err)
-	}
 }
 
 // getEnumOptionsForPath traverses the schema using a dot-delimited field path
@@ -245,6 +233,21 @@ func getDescriptionForPath(fieldPath string) string {
 		currentNode = next
 	}
 	return ""
+}
+
+func isSensitive(fieldPath string) bool {
+	return strings.Contains(fieldPath, "api_key") || strings.Contains(fieldPath, "personal_access_token")
+}
+
+// Add helper function to read hidden input using golang.org/x/term
+func readHiddenInput(prompt string) string {
+	fmt.Print(prompt)
+	byteInput, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		log.Fatalf(ColorRed+"Failed to read hidden input: %v"+ColorReset, err)
+	}
+	fmt.Println("")
+	return strings.TrimSpace(string(byteInput))
 }
 
 // editFieldRecursive interactively allows the user to navigate through and edit fields.
@@ -343,9 +346,13 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 					newValue = enumOptions[choiceNum-1]
 				}
 			} else {
-				// Freeform input for terminal fields.
-				fmt.Print(ColorCyan + "📝 Enter new value for " + ColorBlue + newPath + ColorCyan + " (or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
-				fmt.Scan(&newValue)
+				// Freeform input for terminal fields
+				if isSensitive(newPath) {
+					newValue = readHiddenInput(ColorCyan + "📝 Enter new value for " + ColorBlue + newPath + ColorCyan + " (input hidden, or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
+				} else {
+					fmt.Print(ColorCyan + "📝 Enter new value for " + ColorBlue + newPath + ColorCyan + " (or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
+					fmt.Scan(&newValue)
+				}
 				if strings.ToLower(newValue) == "s" {
 					log.Println(ColorGreen + "✅ All changes saved." + ColorReset)
 					saveConfigV3(topMap)
@@ -382,9 +389,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 								fmt.Printf(ColorRed+"Provider %s is not fully configured."+ColorReset+"\n", newValue)
 								// Prompt for api_key if missing.
 								if apiKey == "" {
-									fmt.Print(ColorCyan + "📝 Enter api_key for " + ColorBlue + newValue + ColorCyan + " (or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
-									var apiKeyInput string
-									fmt.Scan(&apiKeyInput)
+									apiKeyInput := readHiddenInput(ColorCyan + "📝 Enter api_key for " + ColorBlue + newValue + ColorCyan + " (input hidden, or " + ColorYellow + "s" + ColorCyan + " to save and exit): " + ColorReset)
 									if strings.ToLower(apiKeyInput) == "s" {
 										log.Println(ColorGreen + "✅ All changes saved." + ColorReset)
 										saveConfigV3(topMap)
@@ -457,7 +462,7 @@ func editFieldRecursive(currentMap map[string]interface{}, path string, topMap m
 			fmt.Scan(&cont)
 			cont = strings.ToLower(cont)
 			if cont == "s" || cont == "n" {
-				log.Println(ColorGreen + "✅ All changes saved." + ColorReset)
+				log.Println(ColorGreen + "✅ All changes saved. You can view the config file by running 'gdi config --show'." + ColorReset)
 				os.Exit(0)
 			} else if cont != "y" {
 				log.Println(ColorRed + "Invalid input, returning to main prompt." + ColorReset)
