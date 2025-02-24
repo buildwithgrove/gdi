@@ -13,6 +13,7 @@ type OpenRouterModel string
 const (
 	modelDeepseekChat            OpenRouterModel = "deepseek/deepseek-chat"
 	modelDeepseekR1              OpenRouterModel = "deepseek/deepseek-r1"
+	modelPerplexityR11776        OpenRouterModel = "perplexity/r1-1776"
 	modelOpenAIGPT4o             OpenRouterModel = "openai/chatgpt-4o-latest"
 	modelOpenAIO1                OpenRouterModel = "openai/o1"
 	modelAnthropicClaude37Sonnet OpenRouterModel = "anthropic/claude-3.7-sonnet"
@@ -25,6 +26,7 @@ func (m OpenRouterModel) IsValid() bool {
 	switch m {
 	case modelDeepseekChat,
 		modelDeepseekR1,
+		modelPerplexityR11776,
 		modelOpenAIGPT4o,
 		modelOpenAIO1,
 		modelAnthropicClaude37Sonnet,
@@ -42,6 +44,7 @@ func ListValidModelsStr() string {
 	for _, model := range []OpenRouterModel{
 		modelDeepseekChat,
 		modelDeepseekR1,
+		modelPerplexityR11776,
 		modelOpenAIGPT4o,
 		modelOpenAIO1,
 		modelAnthropicClaude37Sonnet,
