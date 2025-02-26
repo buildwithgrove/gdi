@@ -41,10 +41,10 @@ func init() {
 	rootCmd.AddCommand(git.GitCmd)
 	rootCmd.AddCommand(config.ConfigCmd)
 
-	// if !config.ConfigExists() {
-	// 	config.RunFirstTimeSetup()
-	// 	return
-	// }
+	if !config.ConfigExists() {
+		config.RunFirstTimeSetup()
+		return
+	}
 }
 
 func Execute() {

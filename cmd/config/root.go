@@ -37,7 +37,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -106,7 +105,8 @@ Flags:
 			os.Exit(1)
 		}
 
-		yamlEditor.InteractiveEditConfigV3()
+		// Start the interactive editor.
+		yamlEditor.InteractiveEditConfig()
 	},
 }
 
@@ -129,21 +129,17 @@ func editConfig(editor string) {
 }
 
 /* ---------- Custom Field Handlers ---------- */
+
 const (
 	// defaultLLMProviderFieldName is the field name for the default LLM provider in the GDI config file.
 	defaultLLMProviderFieldName = "llm_config.default_llm_provider"
 )
 
+// WithDefaultLLMProviderHandler sets a custom field handler for the default LLM provider field.
 func WithDefaultLLMProviderHandler(yamlEditor *cfgEditor.YAMLEditor) {
-	yamlEditor.SetCustomFieldHandler(defaultLLMProviderFieldName, customLLMProviderHandler())
-}
-
-// customLLMProviderHandler logs a warning if the user selects a default LLM provider that is not configured.
-func customLLMProviderHandler() func(node *yaml.Node, fieldPath, newProvider string) {
-	return func(node *yaml.Node, fieldPath, newProvider string) {
-		// Extract the provider name from the field path
-		provider := strings.TrimPrefix(fieldPath, "llm_config.default_llm_provider.")
-
+	// customLLMProviderHandler logs a warning if the user
+	// selects a default LLM provider that is not configured.
+	defaultLLMProviderHandler := func(node *yaml.Node, fieldPath, provider string) {
 		// Find the llm_providers section in the YAML config
 		llmConfigNode := cfgEditor.GetMappingValue(node, "llm_config")
 		if llmConfigNode == nil {
@@ -159,9 +155,15 @@ func customLLMProviderHandler() func(node *yaml.Node, fieldPath, newProvider str
 
 		// Check if the specified provider is configured
 		providerNode := cfgEditor.GetMappingValue(llmProvidersNode, provider)
-		if providerNode == nil || cfgEditor.GetMappingValue(providerNode, "api_key") == nil || cfgEditor.GetMappingValue(providerNode, "client_model") == nil {
-			fmt.Printf("%s🚨 Provider '%s' is not fully configured!%s\n", log.Red, newProvider, log.ResetColor)
-			fmt.Printf("%sPlease use the interactive configuration editor to configure provider '%s' by adding the missing fields: api_key and client_model.%s\n", log.Yellow, newProvider, log.ResetColor)
+		if providerNode == nil || cfgEditor.GetMappingValue(providerNode, "api_key").Value == "" || cfgEditor.GetMappingValue(providerNode, "client_model").Value == "" {
+			fmt.Printf("%s🚨 Provider '%s' is not fully configured!%s\n", log.Red, provider, log.ResetColor)
+			fmt.Printf("%sPlease use the interactive configuration editor to configure provider '%s' by adding the missing fields: api_key and client_model.%s\n", log.Yellow, provider, log.ResetColor)
 		}
 	}
+
+	// Set the custom field handler for the default LLM provider field.
+	yamlEditor.SetCustomFieldHandler(
+		defaultLLMProviderFieldName,
+		defaultLLMProviderHandler,
+	)
 }

@@ -1,6 +1,7 @@
 description: "Grove Developer Interface Configuration YAML: this file is used to configure the Grove Developer Interface."
 type: object
 required:
+  - git_config
   - llm_config
 additionalProperties: false
 properties:
@@ -12,7 +13,7 @@ properties:
     additionalProperties: false
     properties:
       personal_access_token:
-        description: "Valid Personal Access Token for GitHub. Required if performing actions on a private repository. Should have at least `write` scope for `repo`."
+        description: "Valid Personal Access Token for GitHub. Should have at least `write` scope for `repo`."
         type: string
         pattern: "^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[a-zA-Z0-9_]{36,}$"
   llm_config:
