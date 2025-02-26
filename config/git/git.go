@@ -8,7 +8,6 @@ import (
 var tokenPattern = regexp.MustCompile(`^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[a-zA-Z0-9_]{36,}$`)
 
 var (
-	errPersonalAccessTokenMissing = errors.New("config error: personal access token is missing")
 	errInvalidPersonalAccessToken = errors.New("config error: personal access token is invalid")
 )
 
@@ -19,10 +18,7 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if c != nil {
-		if c.PersonalAccessToken == "" {
-			return errPersonalAccessTokenMissing
-		}
+	if c != nil && c.PersonalAccessToken != "" {
 		if !tokenPattern.MatchString(c.PersonalAccessToken) {
 			return errInvalidPersonalAccessToken
 		}

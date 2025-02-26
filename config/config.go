@@ -46,6 +46,25 @@ func LoadConfig() (*Config, error) {
 	return &config, nil
 }
 
+func InitEmptyConfig() error {
+	config := &Config{
+		Git: &git.Config{},
+		LLMs: &llm.Config{
+			LLMProviders: llm.ProvidersConfig{
+				OpenAI:     &llm.OpenAIConfig{},
+				DeepSeek:   &llm.DeepSeekConfig{},
+				Anthropic:  &llm.AnthropicConfig{},
+				OpenRouter: &llm.OpenRouterConfig{},
+			},
+		},
+	}
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(ConfigFilePath, data, 0644)
+}
+
 // Embed the schema file in the binary for use in the config command.
 // This is to allow the schema file to be loaded in the config command,
 // regardless of where the binary is run from.

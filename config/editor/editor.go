@@ -16,20 +16,6 @@ import (
 	"github.com/buildwithgrove/gdi/log"
 )
 
-func init() {
-	// Set up a channel to listen for interrupt signals.
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
-
-	// Start a goroutine to handle the signal if the user interrupts the editor.
-	go func() {
-		<-signalChannel
-		clearTerminal()
-		fmt.Println(log.Yellow + "👋 Exited the configuration YAML editor early. Changes not saved." + log.ResetColor)
-		os.Exit(0)
-	}()
-}
-
 type (
 	// FieldName is the name of a field in the YAML config, used to perform custom field handling for specific config YAML formats
 	FieldName string
@@ -70,6 +56,18 @@ func NewYAMLEditor(
 	schemaNode *yaml.Node,
 	customFieldHandlerFuncs ...WithCustomFieldHandlerFunc,
 ) (*YAMLEditor, error) {
+	// Set up a channel to listen for interrupt signals.
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start a goroutine to handle the signal if the user interrupts the editor.
+	go func() {
+		<-signalChannel
+		ClearTerminal()
+		fmt.Println(log.Yellow + "👋 Exited the configuration YAML editor early. Changes not saved." + log.ResetColor)
+		os.Exit(0)
+	}()
+
 	configNode, err := loadConfigNode(configFilePath)
 	if err != nil {
 		return nil, err
@@ -113,22 +111,81 @@ func (e *YAMLEditor) SetCustomFieldHandler(fieldName FieldName, handler CustomFi
 	e.customFieldHandlers[fieldName] = handler
 }
 
-// InteractiveEditConfigV3 runs the interactive loop for editing the YAML config.
-func (e *YAMLEditor) InteractiveEditConfigV3() {
+func (e *YAMLEditor) GetConfigNode() *yaml.Node {
+	return e.configNode
+}
+
+// InteractiveEditConfig runs the interactive loop for editing the YAML config.
+func (e *YAMLEditor) InteractiveEditConfig() {
 	for {
-		clearTerminal()
+		ClearTerminal()
 		e.editFieldRecursive(e.configNode, "")
 
 		// Ask for confirmation to continue editing.
-		cont := readInput(log.Green + "Do you want to continue editing? (y for yes, n to save and exit): " + log.ResetColor)
+		cont := ReadInput(log.Green + "Do you want to continue editing? (y for yes, n to save and exit): " + log.ResetColor)
 		cont = strings.ToLower(cont)
 		if cont == "n" {
-			e.saveConfigAndExit()
+			e.SaveConfigAndExit()
 		} else if cont != "y" {
 			fmt.Println(log.Red + "Invalid input, returning to main prompt." + log.ResetColor)
 		}
 		// if "y", loop continues.
 	}
+}
+
+// GetEnumOptionsForPath traverses the schemaNode using a dot-delimited field path and returns the allowed enum options if available.
+func (e *YAMLEditor) GetEnumOptionsForPath(fieldPath string) []string {
+	parts := strings.Split(fieldPath, ".")
+	props := GetMappingValue(e.schemaNode, "properties")
+	if props == nil {
+		return nil
+	}
+
+	current := props
+	for i, part := range parts {
+		node := GetMappingValue(current, part)
+		if node == nil {
+			return nil
+		}
+		if i == len(parts)-1 {
+			enumNode := GetMappingValue(node, "enum")
+			if enumNode == nil || enumNode.Kind != yaml.SequenceNode {
+				return nil
+			}
+			var options []string
+			for _, item := range enumNode.Content {
+				options = append(options, item.Value)
+			}
+			return options
+		}
+		next := GetMappingValue(node, "properties")
+		if next == nil {
+			return nil
+		}
+		current = next
+	}
+	return nil
+}
+
+// SaveConfigAndExit writes the updated YAML Node configuration to the config file,
+// then clears the terminal, prints a success message, and exits.
+func (e *YAMLEditor) SaveConfigAndExit() {
+	file, err := os.Create(e.configFilePath)
+	if err != nil {
+		fmt.Printf(log.Red+"Failed to open config file for writing: %v"+log.ResetColor, err)
+	}
+	defer file.Close()
+	encoder := yaml.NewEncoder(file)
+	err = encoder.Encode(e.configNode)
+	if err != nil {
+		fmt.Printf(log.Red+"Failed to encode config to YAML: %v"+log.ResetColor, err)
+	}
+
+	ClearTerminal()
+
+	fmt.Println(log.Green + "✅ All changes saved successfully to " + e.configFilePath + ".\n" + log.Blue + "💡 To view the updated raw config, run `gdi config --show`." + log.ResetColor)
+
+	os.Exit(0)
 }
 
 // editFieldRecursive recursively traverses the YAML node tree for interactive editing.
@@ -137,7 +194,7 @@ func (e *YAMLEditor) editFieldRecursive(currentNode *yaml.Node, path string) {
 	// Check if the current node is a mapping node (i.e., a dictionary-like structure).
 	if currentNode.Kind == yaml.MappingNode {
 		for {
-			clearTerminal() // Clear the terminal for a fresh display.
+			ClearTerminal() // Clear the terminal for a fresh display.
 			fmt.Println(log.Green + "❓ Which field would you like to edit? (or type " + log.Yellow + "s" + log.Green + " to save and exit)" + log.ResetColor)
 
 			// If we're at a nested level, provide an option to go up one level.
@@ -150,10 +207,10 @@ func (e *YAMLEditor) editFieldRecursive(currentNode *yaml.Node, path string) {
 			printMappingOptions(keys, path, e) // Display the keys with descriptions.
 
 			// Prompt the user for a choice.
-			choiceInput := readInput(log.Cyan + "📝 Enter choice (number, or " + log.Yellow + "s" + log.Cyan + " to save and exit): " + log.ResetColor)
+			choiceInput := ReadInput(log.Cyan + "📝 Enter choice (number, or " + log.Yellow + "s" + log.Cyan + " to save and exit): " + log.ResetColor)
 			choiceInput = strings.ToLower(choiceInput)
 			if choiceInput == "s" {
-				e.saveConfigAndExit()
+				e.SaveConfigAndExit()
 			}
 
 			choice, err := strconv.Atoi(choiceInput)
@@ -226,7 +283,7 @@ func printMappingOptions(keys []string, path string, e *YAMLEditor) {
 
 // handleScalarEditing manages editing of a scalar node (leaf) with optional enum options.
 func (e *YAMLEditor) handleScalarEditing(node *yaml.Node, path string) {
-	enumOptions := e.getEnumOptionsForPath(path)
+	enumOptions := e.GetEnumOptionsForPath(path)
 	var newValue string
 	if len(enumOptions) > 0 {
 		newValue = e.handleEnumSelection(path, enumOptions, node.Value)
@@ -244,10 +301,10 @@ func (e *YAMLEditor) handleScalarEditing(node *yaml.Node, path string) {
 	}
 
 	// After editing the scalar, ask if the user wants to continue editing.
-	contLevel := readInput(log.Green + "Do you want to continue editing the config?" + log.Cyan + " (y for yes, n to save and exit): " + log.ResetColor)
+	contLevel := ReadInput(log.Green + "Do you want to continue editing the config?" + log.Cyan + " (y for yes, n to save and exit): " + log.ResetColor)
 	contLevel = strings.ToLower(contLevel)
 	if contLevel == "n" {
-		e.saveConfigAndExit()
+		e.SaveConfigAndExit()
 	} else if contLevel != "y" {
 		return
 	}
@@ -255,7 +312,7 @@ func (e *YAMLEditor) handleScalarEditing(node *yaml.Node, path string) {
 
 // handlePrimitiveNodeEditing handles editing when the current node is a non-mapping primitive.
 func (e *YAMLEditor) handlePrimitiveNodeEditing(node *yaml.Node, path string) {
-	clearTerminal()
+	ClearTerminal()
 	if !isSensitive(path) {
 		fmt.Printf(log.Cyan+"Current value for %s: %s\n"+log.ResetColor, path, node.Value)
 	}
@@ -270,17 +327,17 @@ func (e *YAMLEditor) handlePrimitiveNodeEditing(node *yaml.Node, path string) {
 // handleEnumSelection manages enum selection from given options.
 // Returns the selected value.
 func (e *YAMLEditor) handleEnumSelection(path string, options []string, currentVal string) string {
-	clearTerminal()
+	ClearTerminal()
 	fmt.Printf(log.Green+"Select one of the following options for "+log.Blue+"%s"+log.Green+" (or type "+log.Yellow+"s"+log.Green+" to save and exit):"+log.ResetColor+"\n", path)
 	fmt.Println(log.White + "0. Go back" + log.ResetColor)
 	// List options
 	for i, option := range options {
 		fmt.Printf("%d. "+log.Purple+"%s"+log.ResetColor+"\n", i+1, option)
 	}
-	enumInput := readInput(log.Cyan + "📝 Enter choice: " + log.ResetColor)
+	enumInput := ReadInput(log.Cyan + "📝 Enter choice: " + log.ResetColor)
 	enumInput = strings.ToLower(enumInput)
 	if enumInput == "s" {
-		e.saveConfigAndExit()
+		e.SaveConfigAndExit()
 	}
 	choiceNum, err := strconv.Atoi(enumInput)
 	if err != nil || choiceNum < 0 || choiceNum > len(options) {
@@ -297,7 +354,7 @@ func (e *YAMLEditor) handleEnumSelection(path string, options []string, currentV
 // It clears the terminal and prints a "0. Go up one level" option.
 // Returns the new value and a bool indicating if the user wants to go back.
 func handleDirectScalarInput(path string, sensitive bool) (string, bool) {
-	clearTerminal()
+	ClearTerminal()
 	if !sensitive {
 		fmt.Printf(log.Cyan+"Current value for %s: %s\n"+log.ResetColor, path, "")
 	}
@@ -315,40 +372,6 @@ func handleDirectScalarInput(path string, sensitive bool) (string, bool) {
 	}
 
 	return newValue, false
-}
-
-// getEnumOptionsForPath traverses the schemaNode using a dot-delimited field path and returns the allowed enum options if available.
-func (e *YAMLEditor) getEnumOptionsForPath(fieldPath string) []string {
-	parts := strings.Split(fieldPath, ".")
-	props := GetMappingValue(e.schemaNode, "properties")
-	if props == nil {
-		return nil
-	}
-
-	current := props
-	for i, part := range parts {
-		node := GetMappingValue(current, part)
-		if node == nil {
-			return nil
-		}
-		if i == len(parts)-1 {
-			enumNode := GetMappingValue(node, "enum")
-			if enumNode == nil || enumNode.Kind != yaml.SequenceNode {
-				return nil
-			}
-			var options []string
-			for _, item := range enumNode.Content {
-				options = append(options, item.Value)
-			}
-			return options
-		}
-		next := GetMappingValue(node, "properties")
-		if next == nil {
-			return nil
-		}
-		current = next
-	}
-	return nil
 }
 
 // getDescriptionForPath retrieves the description for a given field path from the schemaNode.
@@ -381,27 +404,6 @@ func (e *YAMLEditor) getDescriptionForPath(fieldPath string) string {
 	return ""
 }
 
-// saveConfig writes the updated YAML Node configuration to the config file,
-// then clears the terminal, prints a success message, and exits.
-func (e *YAMLEditor) saveConfigAndExit() {
-	file, err := os.Create(e.configFilePath)
-	if err != nil {
-		fmt.Printf(log.Red+"Failed to open config file for writing: %v"+log.ResetColor, err)
-	}
-	defer file.Close()
-	encoder := yaml.NewEncoder(file)
-	err = encoder.Encode(e.configNode)
-	if err != nil {
-		fmt.Printf(log.Red+"Failed to encode config to YAML: %v"+log.ResetColor, err)
-	}
-
-	clearTerminal()
-
-	fmt.Println(log.Green + "✅ All changes saved successfully to " + e.configFilePath + ".\n" + log.Blue + "💡 To view the updated raw config, run `gdi config --show`." + log.ResetColor)
-
-	os.Exit(0)
-}
-
 /* ------------ Helper functions ------------ */
 
 // GetMappingValue returns the value node corresponding to a key in a mapping node.
@@ -419,11 +421,40 @@ func GetMappingValue(node *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-// clearTerminal clears the console for a fresh prompt display.
-func clearTerminal() {
+// ClearTerminal clears the console for a fresh prompt display.
+func ClearTerminal() {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout
 	cmd.Run()
+}
+
+// ReadInput displays a prompt and returns the user's input.
+func ReadInput(prompt string) string {
+	fmt.Print(prompt)
+	// Use bufio.NewReader to read the entire line including empty responses
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println(log.Red + "Error reading input." + log.ResetColor)
+		return ReadInput(prompt)
+	}
+	input = strings.TrimSpace(input)
+	if input == "" {
+		fmt.Println(log.Red + "Input cannot be empty. Please enter a valid value." + log.ResetColor)
+		return ReadInput(prompt)
+	}
+	return input
+}
+
+// ReadHiddenInput reads input with hidden echo (used for sensitive fields).
+func ReadHiddenInput(prompt string) string {
+	fmt.Print(prompt)
+	byteInput, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		fmt.Printf(log.Red+"Failed to read hidden input: %v"+log.ResetColor, err)
+	}
+	fmt.Println("")
+	return strings.TrimSpace(string(byteInput))
 }
 
 // isSensitive returns true if the field path indicates sensitive information.
@@ -439,39 +470,44 @@ func isSensitive(fieldPath string) bool {
 func promptForValue(path string, sensitive bool) string {
 	var newValue string
 	if sensitive {
-		newValue = readHiddenInput(log.Cyan + "📝 Enter new value for " + log.Blue + path + log.Cyan + " (input hidden): " + log.ResetColor)
+		newValue = ReadHiddenInput(log.Cyan + "📝 Enter new value for " + log.Blue + path + log.Cyan + " (input hidden): " + log.ResetColor)
 	} else {
-		newValue = readInput(log.Cyan + "📝 Enter new value for " + log.Blue + path + log.Cyan + ": " + log.ResetColor)
+		newValue = ReadInput(log.Cyan + "📝 Enter new value for " + log.Blue + path + log.Cyan + ": " + log.ResetColor)
 	}
 	return newValue
 }
 
-// readInput displays a prompt and returns the user's input.clear
-func readInput(prompt string) string {
-	fmt.Print(prompt)
-	// Use bufio.NewReader to read the entire line including empty responses
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Println(log.Red + "Error reading input." + log.ResetColor)
-		return readInput(prompt)
+// GetOrCreateMappingNode retrieves a mapping node with the given key from the parent node,
+// or creates a new one if it doesn't exist.
+func GetOrCreateMappingNode(parent *yaml.Node, key string) *yaml.Node {
+	for i := 0; i < len(parent.Content); i += 2 {
+		if parent.Content[i].Value == key {
+			return parent.Content[i+1]
+		}
 	}
-	input = strings.TrimSpace(input)
-	if input == "" {
-		fmt.Println(log.Red + "Input cannot be empty. Please enter a valid value." + log.ResetColor)
-		// Print the prompt again on a new line
-		return readInput(prompt)
-	}
-	return input
+	node := &yaml.Node{Kind: yaml.MappingNode}
+	parent.Content = append(parent.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, node)
+	return node
 }
 
-// readHiddenInput reads input with hidden echo (used for sensitive fields).
-func readHiddenInput(prompt string) string {
-	fmt.Print(prompt)
-	byteInput, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		fmt.Printf(log.Red+"Failed to read hidden input: %v"+log.ResetColor, err)
+// SetScalarValue sets the scalar value for a given key in a mapping node's content.
+func SetScalarValue(content []*yaml.Node, key, value string) []*yaml.Node {
+	for i := 0; i < len(content); i += 2 {
+		if content[i].Value == key {
+			content[i+1].Value = value
+			return content
+		}
 	}
-	fmt.Println("")
-	return strings.TrimSpace(string(byteInput))
+	return append(content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, &yaml.Node{Kind: yaml.ScalarNode, Value: value})
+}
+
+// SetMappingValue sets the mapping value for a given key in a mapping node's content.
+func SetMappingValue(content []*yaml.Node, key string, value *yaml.Node) []*yaml.Node {
+	for i := 0; i < len(content); i += 2 {
+		if content[i].Value == key {
+			content[i+1] = value
+			return content
+		}
+	}
+	return append(content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, value)
 }
