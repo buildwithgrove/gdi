@@ -21,33 +21,73 @@ func init() {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start a goroutine to handle the signal.
+	// Start a goroutine to handle the signal if the user interrupts the editor.
 	go func() {
 		<-signalChannel
 		clearTerminal()
+		fmt.Println(log.Yellow + "👋 Exited the configuration YAML editor early. Changes not saved." + log.ResetColor)
 		os.Exit(0)
 	}()
 }
 
+type (
+	// FieldName is the name of a field in the YAML config, used to perform custom field handling for specific config YAML formats
+	FieldName string
+	// CustomFieldHandler is a function that performs custom field handling for a specific field in the YAML config.
+	// It is called when the user edits a specific field defined in the command for which a custom handler is registered.
+	CustomFieldHandler func(node *yaml.Node, fieldPath, fieldValue string)
+	// WithCustomFieldHandlerFunc is a function that registers a custom field handler for a specific field in the YAML config.
+	// It is used in the command for which a custom handler is registered.
+	WithCustomFieldHandlerFunc func(yamlEditor *YAMLEditor)
+)
+
+// YAMLEditor allows traversal and editing of ANY configuration YAML file in an
+// interactive terminal editor.
+//
+// It is initialized with the following:
+// - A YAML config file path. This is the absolute path to the YAML config file that will be edited.
+// - A schema node. This is an unmarshaled yaml.Node of the config.schema.yaml file.
+// - A list of custom field handler functions. These are functions that perform custom field handling
+// for specific fields in the YAML config.
+//
+// The custom field handler functions are used to perform custom field handling
+// for specific fields in the YAML config.
 type YAMLEditor struct {
-	configNode          *yaml.Node
-	configFilePath      string
-	schemaNode          *yaml.Node
-	customFieldHandlers map[string]func()
+	// configNode is the unmarshaled yaml.Node of the YAML config file.
+	configNode *yaml.Node
+	// configFilePath is the absolute path to the YAML config file that will be edited.
+	configFilePath string
+	// schemaNode is the unmarshaled yaml.Node of the config.schema.yaml file.
+	// It is used to extract descriptions and enum options for fields in the YAML config.
+	schemaNode *yaml.Node
+	// customFieldHandlers is a map of custom field handler functions for specific fields in the YAML config.
+	customFieldHandlers map[FieldName]CustomFieldHandler
 }
 
 // NewYAMLEditor loads a YAML document into a Node and sets up the editor.
-func NewYAMLEditor(configFilePath string, schemaNode *yaml.Node) (*YAMLEditor, error) {
+func NewYAMLEditor(
+	configFilePath string,
+	schemaNode *yaml.Node,
+	customFieldHandlerFuncs ...WithCustomFieldHandlerFunc,
+) (*YAMLEditor, error) {
 	configNode, err := loadConfigNode(configFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &YAMLEditor{
-		configNode:     configNode,
-		configFilePath: configFilePath,
-		schemaNode:     schemaNode,
-	}, nil
+	yamlEditor := &YAMLEditor{
+		configNode:          configNode,
+		configFilePath:      configFilePath,
+		schemaNode:          schemaNode,
+		customFieldHandlers: make(map[FieldName]CustomFieldHandler),
+	}
+
+	// Add each custom field handler using WithCustomFieldHandler
+	for _, customFieldHandlerFunc := range customFieldHandlerFuncs {
+		customFieldHandlerFunc(yamlEditor)
+	}
+
+	return yamlEditor, nil
 }
 
 // loadConfigNode reads the YAML file and unmarshals it into a yaml.Node.
@@ -66,6 +106,11 @@ func loadConfigNode(configFilePath string) (*yaml.Node, error) {
 		return node.Content[0], nil
 	}
 	return &node, nil
+}
+
+// SetCustomFieldHandler registers a custom field handler for a specific field in the YAML config.
+func (e *YAMLEditor) SetCustomFieldHandler(fieldName FieldName, handler CustomFieldHandler) {
+	e.customFieldHandlers[fieldName] = handler
 }
 
 // InteractiveEditConfigV3 runs the interactive loop for editing the YAML config.
@@ -87,7 +132,7 @@ func (e *YAMLEditor) InteractiveEditConfigV3() {
 }
 
 // editFieldRecursive recursively traverses the YAML node tree for interactive editing.
-// It allows users to navigate through the YAML structure, edit scalar values, and save changes.
+// It allows users to navigate through the YAML structure, edit scalar values (or invoke custom handlers), and save changes.
 func (e *YAMLEditor) editFieldRecursive(currentNode *yaml.Node, path string) {
 	// Check if the current node is a mapping node (i.e., a dictionary-like structure).
 	if currentNode.Kind == yaml.MappingNode {
@@ -141,7 +186,6 @@ func (e *YAMLEditor) editFieldRecursive(currentNode *yaml.Node, path string) {
 				e.editFieldRecursive(selectedValueNode, newPath+".")
 
 			case yaml.ScalarNode:
-				// If the selected node is a scalar, handle its editing.
 				e.handleScalarEditing(selectedValueNode, newPath)
 
 			default:
@@ -192,6 +236,13 @@ func (e *YAMLEditor) handleScalarEditing(node *yaml.Node, path string) {
 	if newValue != "" {
 		node.Value = newValue
 	}
+
+	// After setting the new value, check if a custom handler is
+	// registered for this field and call it if so.
+	if handler, ok := e.customFieldHandlers[FieldName(path)]; ok {
+		handler(e.configNode, path, newValue)
+	}
+
 	// After editing the scalar, ask if the user wants to continue editing.
 	contLevel := readInput(log.Green + "Do you want to continue editing the config?" + log.Cyan + " (y for yes, n to save and exit): " + log.ResetColor)
 	contLevel = strings.ToLower(contLevel)
@@ -269,19 +320,19 @@ func handleDirectScalarInput(path string, sensitive bool) (string, bool) {
 // getEnumOptionsForPath traverses the schemaNode using a dot-delimited field path and returns the allowed enum options if available.
 func (e *YAMLEditor) getEnumOptionsForPath(fieldPath string) []string {
 	parts := strings.Split(fieldPath, ".")
-	props := getMappingValue(e.schemaNode, "properties")
+	props := GetMappingValue(e.schemaNode, "properties")
 	if props == nil {
 		return nil
 	}
 
 	current := props
 	for i, part := range parts {
-		node := getMappingValue(current, part)
+		node := GetMappingValue(current, part)
 		if node == nil {
 			return nil
 		}
 		if i == len(parts)-1 {
-			enumNode := getMappingValue(node, "enum")
+			enumNode := GetMappingValue(node, "enum")
 			if enumNode == nil || enumNode.Kind != yaml.SequenceNode {
 				return nil
 			}
@@ -291,7 +342,7 @@ func (e *YAMLEditor) getEnumOptionsForPath(fieldPath string) []string {
 			}
 			return options
 		}
-		next := getMappingValue(node, "properties")
+		next := GetMappingValue(node, "properties")
 		if next == nil {
 			return nil
 		}
@@ -303,46 +354,31 @@ func (e *YAMLEditor) getEnumOptionsForPath(fieldPath string) []string {
 // getDescriptionForPath retrieves the description for a given field path from the schemaNode.
 func (e *YAMLEditor) getDescriptionForPath(fieldPath string) string {
 	parts := strings.Split(fieldPath, ".")
-	props := getMappingValue(e.schemaNode, "properties")
+	props := GetMappingValue(e.schemaNode, "properties")
 	if props == nil {
 		return ""
 	}
 
 	current := props
 	for i, part := range parts {
-		node := getMappingValue(current, part)
+		node := GetMappingValue(current, part)
 		if node == nil {
 			return ""
 		}
 		if i == len(parts)-1 {
-			descNode := getMappingValue(node, "description")
+			descNode := GetMappingValue(node, "description")
 			if descNode != nil {
 				return descNode.Value
 			}
 			return ""
 		}
-		next := getMappingValue(node, "properties")
+		next := GetMappingValue(node, "properties")
 		if next == nil {
 			return ""
 		}
 		current = next
 	}
 	return ""
-}
-
-// Helper function: getMappingValue returns the value node corresponding to a key in a mapping node.
-func getMappingValue(node *yaml.Node, key string) *yaml.Node {
-	if node == nil || node.Kind != yaml.MappingNode {
-		return nil
-	}
-	for i := 0; i < len(node.Content); i += 2 {
-		k := node.Content[i]
-		v := node.Content[i+1]
-		if k.Value == key {
-			return v
-		}
-	}
-	return nil
 }
 
 // saveConfig writes the updated YAML Node configuration to the config file,
@@ -367,6 +403,21 @@ func (e *YAMLEditor) saveConfigAndExit() {
 }
 
 /* ------------ Helper functions ------------ */
+
+// GetMappingValue returns the value node corresponding to a key in a mapping node.
+func GetMappingValue(node *yaml.Node, key string) *yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(node.Content); i += 2 {
+		k := node.Content[i]
+		v := node.Content[i+1]
+		if k.Value == key {
+			return v
+		}
+	}
+	return nil
+}
 
 // clearTerminal clears the console for a fresh prompt display.
 func clearTerminal() {

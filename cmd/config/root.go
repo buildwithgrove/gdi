@@ -35,14 +35,16 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/buildwithgrove/gdi/config"
 	cfgEditor "github.com/buildwithgrove/gdi/config/editor"
+	"github.com/buildwithgrove/gdi/log"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -57,7 +59,6 @@ func init() {
 }
 
 // ConfigCmd represents the interactive configuration command.
-// The Long description provides detailed usage information.
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Edit the configuration for the application.",
@@ -72,13 +73,14 @@ time by entering the save command.
 	  
 Flags:
   --show (-s)   : Show the current config file.
-  --editor (-e) : Open the config file in a specified text editor. For example, 'gdi config --editor nano' will open the config file in nano.`,
+  --editor (-e) : Open the config file in a specified text editor.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Handle the --show flag: print the configuration file.
 		if show {
 			showConfig()
 			return
 		}
+
 		// Handle the --editor flag: open the file in the given text editor.
 		if editor != "" {
 			editConfig(editor)
@@ -88,12 +90,20 @@ Flags:
 		// Otherwise, start the interactive configuration editor.
 		schema, err := config.LoadSchema()
 		if err != nil {
-			log.Fatalf("Failed to load schema: %v", err)
+			fmt.Printf("Failed to load schema: %v", err)
+			os.Exit(1)
 		}
 
-		yamlEditor, err := cfgEditor.NewYAMLEditor(config.ConfigFilePath, schema)
+		// Define custom field handlers.
+		customHandlerFuncs := []cfgEditor.WithCustomFieldHandlerFunc{
+			// This handler logs a warning if the user selects a default LLM provider that is not configured.
+			WithDefaultLLMProviderHandler,
+		}
+
+		yamlEditor, err := cfgEditor.NewYAMLEditor(config.ConfigFilePath, schema, customHandlerFuncs...)
 		if err != nil {
-			log.Fatalf("Failed to create editor: %v", err)
+			fmt.Printf("Failed to create editor: %v", err)
+			os.Exit(1)
 		}
 
 		yamlEditor.InteractiveEditConfigV3()
@@ -104,7 +114,8 @@ Flags:
 func showConfig() {
 	data, err := os.ReadFile(config.ConfigFilePath)
 	if err != nil {
-		log.Fatalf("Failed to read config file: %v", err)
+		fmt.Printf("Failed to read config file: %v", err)
+		os.Exit(1)
 	}
 	fmt.Println(string(data))
 }
@@ -115,4 +126,42 @@ func editConfig(editor string) {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Run()
+}
+
+/* ---------- Custom Field Handlers ---------- */
+const (
+	// defaultLLMProviderFieldName is the field name for the default LLM provider in the GDI config file.
+	defaultLLMProviderFieldName = "llm_config.default_llm_provider"
+)
+
+func WithDefaultLLMProviderHandler(yamlEditor *cfgEditor.YAMLEditor) {
+	yamlEditor.SetCustomFieldHandler(defaultLLMProviderFieldName, customLLMProviderHandler())
+}
+
+// customLLMProviderHandler logs a warning if the user selects a default LLM provider that is not configured.
+func customLLMProviderHandler() func(node *yaml.Node, fieldPath, newProvider string) {
+	return func(node *yaml.Node, fieldPath, newProvider string) {
+		// Extract the provider name from the field path
+		provider := strings.TrimPrefix(fieldPath, "llm_config.default_llm_provider.")
+
+		// Find the llm_providers section in the YAML config
+		llmConfigNode := cfgEditor.GetMappingValue(node, "llm_config")
+		if llmConfigNode == nil {
+			fmt.Printf("%s⚠️  No LLM configuration found!%s\n", log.Red, log.ResetColor)
+			return
+		}
+
+		llmProvidersNode := cfgEditor.GetMappingValue(llmConfigNode, "llm_providers")
+		if llmProvidersNode == nil {
+			fmt.Printf("%s⚠️  No LLM providers configured!%s\n", log.Red, log.ResetColor)
+			return
+		}
+
+		// Check if the specified provider is configured
+		providerNode := cfgEditor.GetMappingValue(llmProvidersNode, provider)
+		if providerNode == nil || cfgEditor.GetMappingValue(providerNode, "api_key") == nil || cfgEditor.GetMappingValue(providerNode, "client_model") == nil {
+			fmt.Printf("%s🚨 Provider '%s' is not fully configured!%s\n", log.Red, newProvider, log.ResetColor)
+			fmt.Printf("%sPlease use the interactive configuration editor to configure provider '%s' by adding the missing fields: api_key and client_model.%s\n", log.Yellow, newProvider, log.ResetColor)
+		}
+	}
 }
