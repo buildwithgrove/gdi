@@ -41,8 +41,8 @@ import (
 
 // Git config flags
 var prTitle string
-var targetBranch string
 var issue int
+var targetBranch string
 var dummy bool
 
 // LLM config flags
@@ -51,9 +51,9 @@ var llmModelOverride string
 
 func init() {
 	// Initialize Git-related flags.
-	createprCmd.Flags().StringVarP(&prTitle, "pr-title", "t", "", "PR title to open the PR with. Should be descriptive and contain relevant tags. Will open a draft PR if the string contains [DRAFT] or [WIP]. [REQUIRED]")
+	createprCmd.Flags().StringVarP(&prTitle, "pr-title", "t", "", "PR title to open the PR with. Should be descriptive and contain relevant tags. Will open a draft PR if the string contains [DRAFT] or [WIP]. [ONE OF THE FOLLOWING FLAGS MUST BE PROVIDED: -t or -i]")
+	createprCmd.Flags().IntVarP(&issue, "issue", "i", 0, "Issue number to assign to the PR. [ONE OF THE FOLLOWING FLAGS MUST BE PROVIDED: -t or -i]")
 	createprCmd.Flags().StringVarP(&targetBranch, "target-branch", "b", "main", "Target branch to open the PR on. [OPTIONAL, defaults to 'main']")
-	createprCmd.Flags().IntVarP(&issue, "issue", "i", 0, "Issue number to assign to the PR. [OPTIONAL]")
 	createprCmd.Flags().BoolVarP(&dummy, "dummy", "d", false, "Dummy mode. If true, the command will not create a PR but will only print the PR description and copy to clipboard [OPTIONAL, defaults to 'false']")
 	// Initialize LLM-related flags.
 	createprCmd.Flags().StringVarP(&llmProviderOverride, "provider-override", "p", "", "LLM provider override. If set the default provider in the config will be overridden. [OPTIONAL]")
@@ -73,9 +73,9 @@ into a PR description template that includes a sanity checklist. Finally, the co
 PR on GitHub using the generated description. 
 
 Flags:
-  --pr-title (-t)   : Required PR title.
+  --pr-title (-t)   : PR title. (Exactly one of the following flags must be provided: -t or -i)
+  --issue (-i)      : Issue number to assign to the PR. (Exactly one of the following flags must be provided: -t or -i)
   --target-branch (-b): Target branch (default "main").
-  --issue (-i)      : Optional issue number to assign to the PR.
   --dummy (-d)      : If set, the PR is not created; instead, the description is printed and copied.
   --provider-override (-p): Optional LLM provider override.
   --model-override (-m)   : Optional LLM model override.`,
@@ -85,8 +85,11 @@ Flags:
 		logger := polyzero.NewLogger()
 
 		// Validate required flags.
-		if prTitle == "" {
-			log.Fatalf("PR title is required")
+		if prTitle == "" && issue == 0 {
+			log.Fatalf("PR title or issue number is required")
+		}
+		if prTitle != "" && issue != 0 {
+			log.Fatalf("PR title and issue number cannot both be provided")
 		}
 
 		// Load configuration from the config YAML file.

@@ -94,8 +94,11 @@ func (cfg PullRequestConfig) IsValid() error {
 	if cfg.TargetBranch == "" {
 		return fmt.Errorf("pull request config error: target branch is required")
 	}
-	if cfg.Title == "" {
-		return fmt.Errorf("pull request config error: title is required")
+	if cfg.Title == "" && cfg.Issue == 0 {
+		return fmt.Errorf("pull request config error: title or issue number is required")
+	}
+	if cfg.Title != "" && cfg.Issue != 0 {
+		return fmt.Errorf("pull request config error: title and issue number cannot both be provided")
 	}
 	if cfg.Body == "" {
 		return fmt.Errorf("pull request config error: body is required")
@@ -135,9 +138,12 @@ func (p *Provider) CreatePullRequest(ctx context.Context, cfg PullRequestConfig)
 	newPR := &github.NewPullRequest{
 		Head:  github.Ptr(currentBranchName),
 		Base:  github.Ptr(cfg.TargetBranch),
-		Title: github.Ptr(cfg.Title),
 		Body:  github.Ptr(cfg.Body),
 		Draft: github.Ptr(cfg.Draft),
+	}
+	// If a title is provided, include it.
+	if cfg.Title != "" {
+		newPR.Title = github.Ptr(cfg.Title)
 	}
 	// If an issue number is provided, include it.
 	if cfg.Issue != 0 {
