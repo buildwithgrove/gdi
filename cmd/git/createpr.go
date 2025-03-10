@@ -135,8 +135,6 @@ Flags:
 		// Build the final PR description by adding a sanity checklist.
 		prDescription := buildPRDescription(response)
 
-		fmt.Printf("Diff:\n%s\n", diff)
-
 		// --- NEW CODE: Check for TODOs in the diff and append them to the PR description ---
 		todoInThisPR, otherTODOs, err := checkForTODOs(diff)
 		if err != nil {
