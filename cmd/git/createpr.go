@@ -135,6 +135,27 @@ Flags:
 		// Build the final PR description by adding a sanity checklist.
 		prDescription := buildPRDescription(response)
 
+		fmt.Printf("Diff:\n%s\n", diff)
+
+		// --- NEW CODE: Check for TODOs in the diff and append them to the PR description ---
+		todoInThisPR, otherTODOs, err := checkForTODOs(diff)
+		if err != nil {
+			log.Printf("failed to check for TODOs: %v", err)
+		}
+		if len(todoInThisPR) > 0 {
+			todoSection := fmt.Sprintf(todoInThisPRTemplate, strings.Join(todoInThisPR, "\n"))
+			prDescription = todoSection + "\n" + prDescription
+		}
+		if len(otherTODOs) > 0 {
+			newTodoSection := fmt.Sprintf(newTODOsTemplate, strings.Join(otherTODOs, "\n"))
+			if idx := strings.Index(prDescription, "## 🛠️ Type of change"); idx != -1 {
+				prDescription = prDescription[:idx] + newTodoSection + "\n" + prDescription[idx:]
+			} else {
+				prDescription = newTodoSection + "\n" + prDescription
+			}
+		}
+		// --- END NEW CODE ---
+
 		// In dummy mode, print the PR description and copy it to the clipboard.
 		if dummy {
 			err := clipboard.Init()
@@ -215,6 +236,75 @@ func buildPRDescription(summary string) string {
 	return fmt.Sprintf(prDescription, summary)
 }
 
+/*--------- TODOs ---------*/
+
+// --- NEW FUNCTION: checkForTODOs ---
+// checkForTODOs scans the provided diff for added lines containing "TODO_" and,
+// if found, captures the complete comment (including any continuations) and returns
+// two slices of bullet strings with the full comment and file name.
+func checkForTODOs(diff string) (todoInThisPR []string, otherTODOs []string, err error) {
+	lines := strings.Split(diff, "\n")
+	var currentFile string
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		// Skip markdown code block markers
+		if strings.HasPrefix(line, "```") {
+			continue
+		}
+		// Update current file if indicated in diff headers
+		if strings.HasPrefix(line, "New File:") {
+			currentFile = strings.TrimSpace(strings.TrimPrefix(line, "New File:"))
+			continue
+		}
+		if strings.HasPrefix(line, "+++ b/") {
+			currentFile = strings.TrimSpace(strings.TrimPrefix(line, "+++ b/"))
+			continue
+		}
+		// Process added lines (ignore diff metadata)
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			trimmed := strings.TrimSpace(strings.TrimPrefix(line, "+"))
+			// Remove comment markers from the initial line
+			if strings.HasPrefix(trimmed, "#") {
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+			} else if strings.HasPrefix(trimmed, "//") {
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "//"))
+			}
+			if strings.Contains(trimmed, "TODO_") {
+				fullComment := trimmed
+				// Check subsequent lines for continuation if they are additions with comment markers
+				for j := i + 1; j < len(lines); j++ {
+					nextLine := lines[j]
+					if !strings.HasPrefix(nextLine, "+") || strings.HasPrefix(nextLine, "+++") {
+						break
+					}
+					nextTrimmed := strings.TrimSpace(strings.TrimPrefix(nextLine, "+"))
+					// Continue if the line starts with a comment marker
+					if strings.HasPrefix(nextTrimmed, "#") || strings.HasPrefix(nextTrimmed, "//") {
+						// Remove the comment marker and append
+						if strings.HasPrefix(nextTrimmed, "#") {
+							nextTrimmed = strings.TrimSpace(strings.TrimPrefix(nextTrimmed, "#"))
+						} else if strings.HasPrefix(nextTrimmed, "//") {
+							nextTrimmed = strings.TrimSpace(strings.TrimPrefix(nextTrimmed, "//"))
+						}
+						fullComment += " " + nextTrimmed
+						i = j
+					} else {
+						break
+					}
+				}
+				// Build the bullet without a line number
+				bullet := fmt.Sprintf("- %s - %s", fullComment, currentFile)
+				if strings.Contains(fullComment, "TODO_IN_THIS_PR") {
+					todoInThisPR = append(todoInThisPR, bullet)
+				} else {
+					otherTODOs = append(otherTODOs, bullet)
+				}
+			}
+		}
+	}
+	return todoInThisPR, otherTODOs, nil
+}
+
 /*--------- LLM Prompt Templates ---------*/
 
 // promptIntro provides the instructions and template structure for the LLM.
@@ -287,4 +377,18 @@ Select one or more from the following:
 - [ ] For code, I have run 'make test_all'
 - [ ] For configurations, I have update the documentation
 - [ ] I added TODOs where applicable
+`
+
+const todoInThisPRTemplate = `
+## 🚨 TODO_IN_THIS_PR 
+
+Do not merge until these TODOs are resolved:
+%s
+`
+
+const newTODOsTemplate = `
+## 💡 New TODOs 
+
+New TODOs introduced in this PR:
+%s
 `
