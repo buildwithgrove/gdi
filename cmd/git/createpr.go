@@ -44,6 +44,7 @@ var prTitle string
 var issue int
 var targetBranch string
 var dummy bool
+var updatePRNumber int
 
 // LLM config flags
 var llmProviderOverride string
@@ -55,6 +56,7 @@ func init() {
 	createprCmd.Flags().IntVarP(&issue, "issue", "i", 0, "Issue number to assign to the PR. [ONE OF THE FOLLOWING FLAGS MUST BE PROVIDED: -t or -i]")
 	createprCmd.Flags().StringVarP(&targetBranch, "target-branch", "b", "main", "Target branch to open the PR on. [OPTIONAL, defaults to 'main']")
 	createprCmd.Flags().BoolVarP(&dummy, "dummy", "d", false, "Dummy mode. If true, the command will not create a PR but will only print the PR description and copy to clipboard [OPTIONAL, defaults to 'false']")
+	createprCmd.Flags().IntVarP(&updatePRNumber, "update", "u", 0, "Update an existing PR with the given pull request number. [OPTIONAL]")
 	// Initialize LLM-related flags.
 	createprCmd.Flags().StringVarP(&llmProviderOverride, "provider-override", "p", "", "LLM provider override. If set the default provider in the config will be overridden. [OPTIONAL]")
 	createprCmd.Flags().StringVarP(&llmModelOverride, "model-override", "m", "", "LLM model override. If set the default model in the config will be overridden. [OPTIONAL]")
@@ -77,6 +79,7 @@ Flags:
   --issue (-i)      : Issue number to assign to the PR. (Exactly one of the following flags must be provided: -t or -i)
   --target-branch (-b): Target branch (default "main").
   --dummy (-d)      : If set, the PR is not created; instead, the description is printed and copied.
+  --update (-u)     : Update an existing PR with the given pull request number. Cannot be used with --issue.
   --provider-override (-p): Optional LLM provider override.
   --model-override (-m)   : Optional LLM model override.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -90,6 +93,9 @@ Flags:
 		}
 		if prTitle != "" && issue != 0 {
 			log.Fatalf("PR title and issue number cannot both be provided")
+		}
+		if updatePRNumber != 0 && issue != 0 {
+			log.Fatalf("Update PR number and issue number cannot both be provided")
 		}
 
 		// Load configuration from the config YAML file.
@@ -163,6 +169,16 @@ Flags:
 			fmt.Printf("PR Description:\n\n%s\n", prDescription)
 			clipboard.Write(clipboard.FmtText, []byte(prDescription))
 			logger.Info().Msg("PR description copied to clipboard. PR not created.")
+			return
+		}
+
+		// If an update PR number is provided, update the pull request.
+		if updatePRNumber != 0 {
+			pullRequest, err := gitProvider.UpdatePullRequestBody(context.Background(), updatePRNumber, prTitle, prDescription)
+			if err != nil {
+				log.Fatalf("failed to update pull request: %v", err)
+			}
+			fmt.Printf("✅ Pull request # %d updated Successfully!\n🌿 Pull Request URL: %s\n", *pullRequest.Number, *pullRequest.HTMLURL)
 			return
 		}
 

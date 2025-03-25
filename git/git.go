@@ -162,6 +162,41 @@ func (p *Provider) CreatePullRequest(ctx context.Context, cfg PullRequestConfig)
 	return pr, nil
 }
 
+// UpdatePullRequestBody updates the title and body of an existing pull request.
+func (p *Provider) UpdatePullRequestBody(ctx context.Context, number int, title, body string) (*github.PullRequest, error) {
+	if number == 0 {
+		return nil, fmt.Errorf("pull request number is required")
+	}
+	if title == "" {
+		return nil, fmt.Errorf("pull request title is required")
+	}
+	if body == "" {
+		return nil, fmt.Errorf("pull request body is required")
+	}
+
+	// Retrieve the current repository name.
+	repoName, err := p.getCurrentRepoName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo name: %w", err)
+	}
+
+	// Create a pull request object with the new title and body.
+	pull := &github.PullRequest{
+		Title: github.Ptr(title),
+		Body:  github.Ptr(body),
+	}
+
+	// Call the Edit method to update the pull request.
+	pr, _, err := p.PullRequests.Edit(ctx, repoOwner, repoName, number, pull)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update pull request: %w", err)
+	}
+
+	// Log the URL of the updated pull request.
+	p.logger.Info().Str("url", pr.GetHTMLURL()).Msg("updated pull request")
+	return pr, nil
+}
+
 // PushBranchToRemote pushes the specified branch to the remote repository using the stored personal access token.
 // It constructs and executes the "git push" command.
 func (p *Provider) PushBranchToRemote(branchName string) error {
