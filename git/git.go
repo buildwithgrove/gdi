@@ -81,16 +81,20 @@ func NewGitProvider(logger polylog.Logger, cfg gitCfg.Config) (*Provider, error)
 
 // PullRequestConfig holds configuration options for creating a pull request.
 type PullRequestConfig struct {
-	TargetBranch string // The target branch for the pull request.
-	Title        string // The title of the pull request.
-	Body         string // The body/description of the pull request.
-	Draft        bool   // Indicates whether the PR should be created as a draft.
-	Issue        int    // Optional issue number to associate with the PR.
+	CurrentBranch string // The current branch for the pull request.
+	TargetBranch  string // The target branch for the pull request.
+	Title         string // The title of the pull request.
+	Body          string // The body/description of the pull request.
+	Draft         bool   // Indicates whether the PR should be created as a draft.
+	Issue         int    // Optional issue number to associate with the PR.
 }
 
 // IsValid checks if the pull request configuration is valid.
 // It ensures that TargetBranch, Title, and Body are not empty.
 func (cfg PullRequestConfig) IsValid() error {
+	if cfg.CurrentBranch == "" {
+		return fmt.Errorf("pull request config error: current branch is required")
+	}
 	if cfg.TargetBranch == "" {
 		return fmt.Errorf("pull request config error: target branch is required")
 	}
@@ -123,20 +127,15 @@ func (p *Provider) CreatePullRequest(ctx context.Context, cfg PullRequestConfig)
 		return nil, fmt.Errorf("failed to get repo name: %w", err)
 	}
 
-	// Retrieve the current branch name.
-	currentBranchName, err := p.getCurrentBranchName()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current branch name: %w", err)
-	}
 	// Ensure the current branch is pushed to the remote repository.
-	err = p.PushBranchToRemote(currentBranchName)
+	err = p.PushBranchToRemote(cfg.CurrentBranch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to push branch to remote: %w", err)
 	}
 
 	// Construct the new pull request payload.
 	newPR := &github.NewPullRequest{
-		Head:  github.Ptr(currentBranchName),
+		Head:  github.Ptr(cfg.CurrentBranch),
 		Base:  github.Ptr(cfg.TargetBranch),
 		Body:  github.Ptr(cfg.Body),
 		Draft: github.Ptr(cfg.Draft),
@@ -195,6 +194,26 @@ func (p *Provider) UpdatePullRequestBody(ctx context.Context, number int, title,
 	// Log the URL of the updated pull request.
 	p.logger.Info().Str("url", pr.GetHTMLURL()).Msg("updated pull request")
 	return pr, nil
+}
+
+// GetPRTargetBranch retrieves the target branch of a pull request.
+func (p *Provider) GetPRTargetBranch(ctx context.Context, number int) (string, error) {
+	repoName, err := p.getCurrentRepoName()
+	if err != nil {
+		return "", fmt.Errorf("failed to get repo name: %w", err)
+	}
+
+	pr, _, err := p.PullRequests.Get(ctx, repoOwner, repoName, number)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pull request: %w", err)
+	}
+
+	ref := pr.GetBase().GetRef()
+	if ref == "" {
+		return "", fmt.Errorf("pull request target branch is empty")
+	}
+
+	return ref, nil
 }
 
 // PushBranchToRemote pushes the specified branch to the remote repository using the stored personal access token.
@@ -332,7 +351,7 @@ func (p *Provider) getCurrentRepoName() (string, error) {
 
 // getCurrentBranchName returns the name of the current branch in the repository.
 // It retrieves the HEAD reference and extracts the branch's short name.
-func (p *Provider) getCurrentBranchName() (string, error) {
+func (p *Provider) GetCurrentBranchName() (string, error) {
 	// Get the current directory.
 	dir, err := os.Getwd()
 	if err != nil {

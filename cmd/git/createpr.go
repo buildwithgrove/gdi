@@ -118,8 +118,32 @@ Flags:
 			log.Fatalf("failed to get LLM provider: %v", err)
 		}
 
-		logger.Info().
-			Str("dummy", fmt.Sprintf("%t", dummy)).Msg("Initialization successful. Running Create PR command.")
+		// Retrieve the current branch name.
+		currentBranchName, err := gitProvider.GetCurrentBranchName()
+		if err != nil {
+			log.Fatalf("failed to get current branch name: %v", err)
+		}
+
+		logger = logger.With(
+			"dummy", dummy,
+			"current_branch", currentBranchName,
+			"target_branch", targetBranch,
+			"type", "create",
+		)
+
+		// If updating an existing PR, get the target branch.
+		if updatePRNumber != 0 {
+			targetBranch, err = gitProvider.GetPRTargetBranch(context.Background(), updatePRNumber)
+			if err != nil {
+				log.Fatalf("failed to get PR target branch: %v", err)
+			}
+			logger = logger.With(
+				"target_branch", targetBranch,
+				"type", "update",
+			)
+		}
+
+		logger.Info().Msg("Initialization successful. Running command...")
 
 		// Generate a diff from Git against the target branch.
 		diff, err := gitProvider.GenerateDiff(context.Background(), targetBranch)
