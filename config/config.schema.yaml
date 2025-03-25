@@ -111,6 +111,7 @@ properties:
                 description: "Client model for OpenRouter. This may be overriden per-request using the `-m|--model` flag."
                 type: string
                 enum:
+                  - "deepseek/deepseek-chat-v3-0324"
                   - "deepseek/deepseek-chat"
                   - "deepseek/deepseek-r1"
                   - "perplexity/r1-1776"
