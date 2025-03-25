@@ -8,6 +8,7 @@ require (
 	github.com/google/go-github/v69 v69.2.0
 	github.com/liushuangls/go-anthropic/v2 v2.13.1
 	github.com/pokt-network/poktroll v0.0.12
+	github.com/revrost/go-openrouter v0.0.0-20250128091643-3d014d57014d
 	github.com/sashabaranov/go-openai v1.37.0
 	github.com/spf13/cobra v1.9.1
 	golang.design/x/clipboard v0.7.0

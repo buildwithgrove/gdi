@@ -79,6 +79,8 @@ github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRI
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pokt-network/poktroll v0.0.12 h1:7p7p1Ni3pqZyRUTXv61/Pgt+raovT0Ta2orJ6eA7KVY=
 github.com/pokt-network/poktroll v0.0.12/go.mod h1:OS91DEVssUDFEctZtqNBymjd3vcIXZM1MQQl2cCtcsA=
+github.com/revrost/go-openrouter v0.0.0-20250128091643-3d014d57014d h1:3PCl9WWy1S3YpCzlXrDoBJqPJ59IsiqKSf8d3tHDYn0=
+github.com/revrost/go-openrouter v0.0.0-20250128091643-3d014d57014d/go.mod h1:UIrJIZBygNz1DygZPImp56zCjv5IJNNkdp2hNUgn9H4=
 github.com/rogpeppe/go-internal v1.12.0 h1:exVL4IDcn6na9z1rAb56Vxr+CgyK3nn3O+epU5NdKM8=
 github.com/rogpeppe/go-internal v1.12.0/go.mod h1:E+RYuTGaKKdloAfM02xzb0FW3Paa99yedzYV+kq4uf4=
 github.com/rs/xid v1.5.0/go.mod h1:trrq9SKmegXys3aeAKXMUTdJsYXVwGY3RLcfgqegfbg=

@@ -8,6 +8,7 @@ import (
 	"github.com/buildwithgrove/gdi/llm/anthropic"
 	"github.com/buildwithgrove/gdi/llm/deepseek"
 	"github.com/buildwithgrove/gdi/llm/openai"
+	"github.com/buildwithgrove/gdi/llm/openrouter"
 )
 
 var (
@@ -25,19 +26,24 @@ var (
 	errAnthropicConfigNotConfigured = errors.New("LLM config error: Anthropic is not configured")
 	errAnthropicAPIKeyNotConfigured = errors.New("LLM config error: Anthropic API key is not configured")
 	errInvalidAnthropicClientModel  = errors.New("LLM config error: invalid Anthropic client model: %s.\nValid models:\n%s")
+
+	errOpenRouterConfigNotConfigured = errors.New("LLM config error: OpenRouter is not configured")
+	errOpenRouterAPIKeyNotConfigured = errors.New("LLM config error: OpenRouter API key is not configured")
+	errInvalidOpenRouterClientModel  = errors.New("LLM config error: invalid OpenRouter client model: %s.\nValid models:\n%s")
 )
 
 type ProviderType string
 
 const (
-	ProviderNameOpenAI    ProviderType = "openai"
-	ProviderNameDeepSeek  ProviderType = "deepseek"
-	ProviderNameAnthropic ProviderType = "anthropic"
+	ProviderNameOpenAI     ProviderType = "openai"
+	ProviderNameDeepSeek   ProviderType = "deepseek"
+	ProviderNameAnthropic  ProviderType = "anthropic"
+	ProviderNameOpenRouter ProviderType = "openrouter"
 )
 
 func (t ProviderType) IsValid() bool {
 	switch t {
-	case ProviderNameOpenAI, ProviderNameDeepSeek, ProviderNameAnthropic:
+	case ProviderNameOpenAI, ProviderNameDeepSeek, ProviderNameAnthropic, ProviderNameOpenRouter:
 		return true
 	default:
 		return false
@@ -50,6 +56,7 @@ func validProvidersStr() string {
 		ProviderNameOpenAI,
 		ProviderNameDeepSeek,
 		ProviderNameAnthropic,
+		ProviderNameOpenRouter,
 	} {
 		providers = append(providers, string(provider))
 	}
@@ -64,9 +71,10 @@ type (
 	}
 	// LLMProvidersConfig represents the configuration for all LLM providers.
 	ProvidersConfig struct {
-		OpenAI    *OpenAIConfig    `yaml:"openai"`
-		DeepSeek  *DeepSeekConfig  `yaml:"deepseek"`
-		Anthropic *AnthropicConfig `yaml:"anthropic"`
+		OpenAI     *OpenAIConfig     `yaml:"openai"`
+		DeepSeek   *DeepSeekConfig   `yaml:"deepseek"`
+		Anthropic  *AnthropicConfig  `yaml:"anthropic"`
+		OpenRouter *OpenRouterConfig `yaml:"openrouter"`
 	}
 	// OpenAIConfig represents the configuration for the OpenAI provider.
 	OpenAIConfig struct {
@@ -82,6 +90,11 @@ type (
 	AnthropicConfig struct {
 		APIKey      string                   `yaml:"api_key"`
 		ClientModel anthropic.AnthropicModel `yaml:"client_model"`
+	}
+	// OpenRouterConfig represents the configuration for the OpenRouter provider.
+	OpenRouterConfig struct {
+		APIKey      string                     `yaml:"api_key"`
+		ClientModel openrouter.OpenRouterModel `yaml:"client_model"`
 	}
 )
 
@@ -137,6 +150,19 @@ func (c *Config) Validate() error {
 		if !c.LLMProviders.Anthropic.ClientModel.IsValid() {
 			return fmt.Errorf(
 				errInvalidAnthropicClientModel.Error(), c.LLMProviders.Anthropic.ClientModel, anthropic.ListValidModelsStr(),
+			)
+		}
+
+	case ProviderNameOpenRouter:
+		if c.LLMProviders.OpenRouter == nil {
+			return errOpenRouterConfigNotConfigured
+		}
+		if c.LLMProviders.OpenRouter.APIKey == "" {
+			return errOpenRouterAPIKeyNotConfigured
+		}
+		if !c.LLMProviders.OpenRouter.ClientModel.IsValid() {
+			return fmt.Errorf(
+				errInvalidOpenRouterClientModel.Error(), c.LLMProviders.OpenRouter.ClientModel, openrouter.ListValidModelsStr(),
 			)
 		}
 	}

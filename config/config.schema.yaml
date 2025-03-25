@@ -30,6 +30,7 @@ properties:
           - "openai"
           - "deepseek"
           - "anthropic"
+          - "openrouter"
       llm_providers:
         description: "LLM providers configuration. This is used to configure your LLM providers."
         type: object
@@ -37,6 +38,7 @@ properties:
           - required: ["openai"]
           - required: ["deepseek"]
           - required: ["anthropic"]
+          - required: ["openrouter"]
         additionalProperties: false
         properties:
           openai:
@@ -94,5 +96,28 @@ properties:
                   - "claude-3-5-haiku-latest"
                   - "claude-3-5-sonnet-latest"
                   - "claude-3-opus-20240229"
-
-
+          openrouter:
+            description: "OpenRouter configuration."
+            type: object
+            required:
+              - api_key
+              - client_model
+            additionalProperties: false
+            properties:
+              api_key:
+                description: "API key for OpenRouter."
+                type: string
+              client_model:
+                description: "Client model for OpenRouter. This may be overriden per-request using the `-m|--model` flag."
+                type: string
+                enum:
+                  - "deepseek/deepseek-chat-v3-0324"
+                  - "deepseek/deepseek-chat"
+                  - "deepseek/deepseek-r1"
+                  - "perplexity/r1-1776"
+                  - "openai/chatgpt-4o-latest"
+                  - "openai/o1"
+                  - "anthropic/claude-3.7-sonnet"
+                  - "anthropic/claude-3.5-haiku"
+                  - "anthropic/claude-3-opus"
+                  - "qwen/qwen-turbo"

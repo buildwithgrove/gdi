@@ -34,7 +34,7 @@ func ListValidModelsStr() string {
 		modelClaude3Dot5SonnetLatest,
 		modelClaude3Opus20240229,
 	} {
-		models = append(models, string(model))
+		models = append(models, "- "+string(model))
 	}
 	return strings.Join(models, "\n")
 }

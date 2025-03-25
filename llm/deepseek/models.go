@@ -34,7 +34,7 @@ func ListValidModelsStr() string {
 		modelDeepSeekCoder,
 		modelDeepSeekReasoner,
 	} {
-		models = append(models, string(model))
+		models = append(models, "- "+string(model))
 	}
 	return strings.Join(models, "\n")
 }
