@@ -11,7 +11,7 @@ type OpenRouterModel string
 // More models can be added as needed from the OpenRouter API site:
 // https://openrouter.ai/models
 const (
-	modelDeepseekR3Latest        OpenRouterModel = "deepseek/deepseek-chat-v3-0324"
+	modelDeepseekChat0324        OpenRouterModel = "deepseek/deepseek-chat-v3-0324"
 	modelDeepseekChat            OpenRouterModel = "deepseek/deepseek-chat"
 	modelDeepseekR1              OpenRouterModel = "deepseek/deepseek-r1"
 	modelPerplexityR11776        OpenRouterModel = "perplexity/r1-1776"
@@ -27,7 +27,7 @@ func (m OpenRouterModel) IsValid() bool {
 	switch m {
 	case modelDeepseekChat,
 		modelDeepseekR1,
-		modelDeepseekR3Latest,
+		modelDeepseekChat0324,
 		modelPerplexityR11776,
 		modelOpenAIGPT4o,
 		modelOpenAIO1,
@@ -46,7 +46,7 @@ func ListValidModelsStr() string {
 	for _, model := range []OpenRouterModel{
 		modelDeepseekChat,
 		modelDeepseekR1,
-		modelDeepseekR3Latest,
+		modelDeepseekChat0324,
 		modelPerplexityR11776,
 		modelOpenAIGPT4o,
 		modelOpenAIO1,
