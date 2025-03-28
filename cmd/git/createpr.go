@@ -119,14 +119,14 @@ Flags:
 		}
 
 		// Retrieve the current branch name.
-		currentBranchName, err := gitProvider.GetCurrentBranchName()
+		currentBranch, err := gitProvider.GetCurrentBranchName()
 		if err != nil {
 			log.Fatalf("failed to get current branch name: %v", err)
 		}
 
 		logger = logger.With(
 			"dummy", dummy,
-			"current_branch", currentBranchName,
+			"current_branch", currentBranch,
 			"target_branch", targetBranch,
 			"type", "create",
 		)
@@ -208,10 +208,11 @@ Flags:
 
 		// Construct the pull request configuration.
 		pullRequestConfig := git.PullRequestConfig{
-			TargetBranch: targetBranch,
-			Title:        prTitle,
-			Body:         prDescription,
-			Draft:        isDraft(prTitle),
+			CurrentBranch: currentBranch,
+			TargetBranch:  targetBranch,
+			Title:         prTitle,
+			Body:          prDescription,
+			Draft:         isDraft(prTitle),
 		}
 		// If an issue number is provided, add it to the configuration.
 		if issue != 0 {
