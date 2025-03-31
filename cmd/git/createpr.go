@@ -161,8 +161,6 @@ Flags:
 		// Build the prompt by merging PR title and generated diff.
 		prompt := buildPrompt(prTitle, diff, branchCommitsStr)
 
-		fmt.Printf("Prompt: %s\n", prompt)
-
 		// Get prompt flags based on any model override.
 		promptFlags := getPromptFlags()
 		// Send the prompt to the LLM provider.
