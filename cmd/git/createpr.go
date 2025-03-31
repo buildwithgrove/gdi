@@ -151,8 +151,17 @@ Flags:
 			log.Fatalf("failed to generate diff: %v", err)
 		}
 
+		// Get the commits on the current branch.
+		branchCommits, err := gitProvider.GetCommitsSinceBranchCreation(targetBranch)
+		if err != nil {
+			log.Fatalf("failed to get branch commits: %v", err)
+		}
+		branchCommitsStr := strings.Join(branchCommits, "\n")
+
 		// Build the prompt by merging PR title and generated diff.
-		prompt := buildPrompt(prTitle, diff)
+		prompt := buildPrompt(prTitle, diff, branchCommitsStr)
+
+		fmt.Printf("Prompt: %s\n", prompt)
 
 		// Get prompt flags based on any model override.
 		promptFlags := getPromptFlags()
@@ -258,8 +267,8 @@ func getPromptFlags() []llm.PromptFlag {
 
 // buildPrompt constructs the LLM prompt by merging the PR title and git diff.
 // The prompt follows a specific template to guide the LLM in generating a PR description.
-func buildPrompt(prTitle, diff string) string {
-	return fmt.Sprintf(promptIntro, git.CombinedDiffCmd, prTitle, diff)
+func buildPrompt(prTitle, diff, branchCommits string) string {
+	return fmt.Sprintf(promptIntro, git.CombinedDiffCmd, prTitle, branchCommits, diff)
 }
 
 // isDraft checks if the PR title contains "DRAFT" (case-insensitive).
@@ -383,6 +392,11 @@ const promptIntro = `Please generate a GitHub PR description from the following 
 		Do not simply use it as the Summary but use it as a simple guideline for how to structure the the template.
 
 		PR Title: %s
+
+		The commits on the current branch should also be used to provide context for the PR description and guide the outputted PR description.
+
+		Branch Commits:
+		%s
 
 		Considerations:
 		- Keep the bullet points concise

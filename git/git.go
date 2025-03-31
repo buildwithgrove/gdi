@@ -349,7 +349,7 @@ func (p *Provider) getCurrentRepoName() (string, error) {
 	return repoName, nil
 }
 
-// getCurrentBranchName returns the name of the current branch in the repository.
+// GetCurrentBranchName returns the name of the current branch in the repository.
 // It retrieves the HEAD reference and extracts the branch's short name.
 func (p *Provider) GetCurrentBranchName() (string, error) {
 	// Get the current directory.
@@ -373,4 +373,91 @@ func (p *Provider) GetCurrentBranchName() (string, error) {
 	// Extract and return the branch name.
 	branchName := ref.Name().Short()
 	return branchName, nil
+}
+
+// GetCommitsSinceCurrentBranchCreation returns the commit messages since the current branch was created.
+// This is a convenience wrapper around GetCommitsSinceBranchCreation that attempts to automatically
+// detect the base branch.
+func (p *Provider) GetCommitsSinceCurrentBranchCreation() ([]string, error) {
+	return p.GetCommitsSinceBranchCreation("")
+}
+
+// GetCommitsSinceBranchCreation returns the commit messages since the current branch was created.
+// It executes git commands to find the commit where the branch diverged from the specified base branch
+// and returns all commit messages from that point as a slice of strings.
+// If baseBranch is empty, it will attempt to use main, then master, and finally find the fork point.
+func (p *Provider) GetCommitsSinceBranchCreation(baseBranch string) ([]string, error) {
+	// Get the current branch
+	currentBranch, err := p.GetCurrentBranchName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current branch name: %w", err)
+	}
+
+	var baseCommit []byte
+	var cmd *exec.Cmd
+
+	if baseBranch == "" {
+		// Try to detect the base branch automatically
+		baseBranches := []string{"main", "master", "develop"}
+		for _, branch := range baseBranches {
+			cmd = exec.Command("git", "merge-base", branch, currentBranch)
+			baseCommit, err = cmd.Output()
+			if err == nil {
+				p.logger.Info().Msgf("Detected %s as the base branch", branch)
+				break
+			}
+		}
+
+		// If we couldn't find a common ancestor with standard branches, try to find the fork point
+		if err != nil {
+			p.logger.Info().Msg("Standard base branches not found, finding fork point...")
+			cmd = exec.Command("git", "rev-parse", currentBranch)
+			currentCommit, err := cmd.Output()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get current branch commit: %w", err)
+			}
+
+			// Use git rev-list to find the fork point
+			cmd = exec.Command("bash", "-c", fmt.Sprintf("git rev-list --boundary %s..HEAD | grep ^- | cut -c2-", string(bytes.TrimSpace(currentCommit))))
+			baseCommit, err = cmd.Output()
+			if err != nil {
+				return nil, fmt.Errorf("failed to find fork point: %w", err)
+			}
+		}
+	} else {
+		// Use the specified base branch
+		cmd = exec.Command("git", "merge-base", baseBranch, currentBranch)
+		baseCommit, err = cmd.Output()
+		if err != nil {
+			return nil, fmt.Errorf("failed to find merge base with %s: %w", baseBranch, err)
+		}
+	}
+
+	// Trim any whitespace/newlines from the commit hash
+	baseCommitHash := string(bytes.TrimSpace(baseCommit))
+
+	// Get all commits between the base commit and HEAD
+	cmd = exec.Command("git", "log", "--pretty=format:%s", baseCommitHash+"..HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commit messages: %w", err)
+	}
+
+	// If there are no commits, return an empty slice
+	if len(output) == 0 {
+		p.logger.Info().Msg("No commits found since branch creation")
+		return []string{}, nil
+	}
+
+	// Split the output by newlines to get individual commit messages
+	commitMessages := bytes.Split(output, []byte("\n"))
+
+	// Convert byte slices to strings
+	result := make([]string, len(commitMessages))
+	for i, msg := range commitMessages {
+		result[i] = string(msg)
+	}
+
+	p.logger.Info().Msgf("Found %d commits since branch creation", len(result))
+	return result, nil
 }
