@@ -60,7 +60,11 @@ func RunFirstTimeSetup() error {
 		os.Exit(1)
 	}
 
-	yamlEditor, err := cfgEditor.NewYAMLEditor(cfgPkg.ConfigFilePath, schema)
+	yamlEditor, err := cfgEditor.NewYAMLEditor(
+		"gdi",
+		cfgPkg.ConfigFilePath,
+		schema,
+	)
 	if err != nil {
 		fmt.Printf("Failed to create editor: %v", err)
 		os.Exit(1)
