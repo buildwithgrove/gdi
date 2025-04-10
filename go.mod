@@ -1,6 +1,6 @@
 module github.com/buildwithgrove/gdi
 
-go 1.24.0
+go 1.23.3
 
 require (
 	github.com/cohesion-org/deepseek-go v1.2.3

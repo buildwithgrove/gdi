@@ -46,6 +46,25 @@ func LoadConfig() (*Config, error) {
 	return &config, nil
 }
 
+func InitEmptyConfig() error {
+	config := &Config{
+		Git: &git.Config{},
+		LLMs: &llm.Config{
+			LLMProviders: llm.ProvidersConfig{
+				OpenAI:     &llm.OpenAIConfig{},
+				DeepSeek:   &llm.DeepSeekConfig{},
+				Anthropic:  &llm.AnthropicConfig{},
+				OpenRouter: &llm.OpenRouterConfig{},
+			},
+		},
+	}
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(ConfigFilePath, data, 0644)
+}
+
 // Embed the schema file in the binary for use in the config command.
 // This is to allow the schema file to be loaded in the config command,
 // regardless of where the binary is run from.
@@ -54,9 +73,18 @@ func LoadConfig() (*Config, error) {
 var schemaYaml []byte
 
 // LoadSchema loads the embedded schema from the config.schema.yaml file.
-func LoadSchema(schema *map[string]interface{}) error {
-	if err := yaml.Unmarshal(schemaYaml, &schema); err != nil {
-		return err
+func LoadSchema() (*yaml.Node, error) {
+	var schemaNode yaml.Node
+	if err := yaml.Unmarshal(schemaYaml, &schemaNode); err != nil {
+		return nil, err
 	}
-	return nil
+
+	// Ensure that the schemaNode is the mapping node. If the provided schemaNode
+	// is a document node (which typically has Kind != yaml.MappingNode and its
+	// actual content is in Content[0]), then extract it.
+	if schemaNode.Kind != yaml.MappingNode && len(schemaNode.Content) > 0 {
+		schemaNode = *schemaNode.Content[0]
+	}
+
+	return &schemaNode, nil
 }
