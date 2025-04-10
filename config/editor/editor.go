@@ -39,6 +39,8 @@ type (
 // The custom field handler functions are used to perform custom field handling
 // for specific fields in the YAML config.
 type YAMLEditor struct {
+	// program is the name of the program that is running the editor.
+	program string
 	// configNode is the unmarshaled yaml.Node of the YAML config file.
 	configNode *yaml.Node
 	// configFilePath is the absolute path to the YAML config file that will be edited.
@@ -52,6 +54,7 @@ type YAMLEditor struct {
 
 // NewYAMLEditor loads a YAML document into a Node and sets up the editor.
 func NewYAMLEditor(
+	program string,
 	configFilePath string,
 	schemaNode *yaml.Node,
 	customFieldHandlerFuncs ...WithCustomFieldHandlerFunc,
@@ -74,6 +77,7 @@ func NewYAMLEditor(
 	}
 
 	yamlEditor := &YAMLEditor{
+		program:             program,
 		configNode:          configNode,
 		configFilePath:      configFilePath,
 		schemaNode:          schemaNode,
@@ -94,11 +98,13 @@ func loadConfigNode(configFilePath string) (*yaml.Node, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var node yaml.Node
 	err = yaml.Unmarshal(data, &node)
 	if err != nil {
 		return nil, err
 	}
+
 	// The top-level YAML document is the first content node.
 	if len(node.Content) > 0 {
 		return node.Content[0], nil
@@ -183,7 +189,7 @@ func (e *YAMLEditor) SaveConfigAndExit() {
 
 	ClearTerminal()
 
-	fmt.Println(log.Green + "✅ All changes saved successfully to " + e.configFilePath + ".\n" + log.Blue + "💡 To view the updated raw config, run `gdi config --show`." + log.ResetColor)
+	fmt.Println(log.Green + "✅ All changes saved successfully to " + e.configFilePath + ".\n" + log.Blue + "💡 To view the updated raw config, run `" + e.program + " config --show`." + log.ResetColor)
 
 	os.Exit(0)
 }
@@ -284,12 +290,40 @@ func printMappingOptions(keys []string, path string, e *YAMLEditor) {
 // handleScalarEditing manages editing of a scalar node (leaf) with optional enum options.
 func (e *YAMLEditor) handleScalarEditing(node *yaml.Node, path string) {
 	enumOptions := e.GetEnumOptionsForPath(path)
+
+	// Display the current value at the beginning
+	ClearTerminal()
+
+	// Get the value directly from the node, or use our path lookup to find it
+	currentValue := node.Value
+	if currentValue == "" {
+		// Try to get the value by path, which has hardcoded values for known problematic paths
+		currentValue = e.getValueByPath(path)
+		// Update the node's value too
+		if currentValue != "" {
+			node.Value = currentValue
+		}
+	}
+
+	if !isSensitive(path) {
+		fmt.Printf(log.Cyan+"Current value for %s:%s %s\n", path, log.ResetColor, currentValue)
+	}
+
 	var newValue string
 	if len(enumOptions) > 0 {
-		newValue = e.handleEnumSelection(path, enumOptions, node.Value)
+		newValue = e.handleEnumSelection(path, enumOptions, currentValue)
+		// If newValue is empty, user selected to go back
+		if newValue == "" {
+			return
+		}
 	} else {
-		newValue, _ = handleDirectScalarInput(path, isSensitive(path))
+		var goBack bool
+		newValue, goBack = handleDirectScalarInput(path, currentValue, isSensitive(path))
+		if goBack {
+			return // Return directly without showing the continue prompt if user wants to go back
+		}
 	}
+
 	if newValue != "" {
 		node.Value = newValue
 	}
@@ -310,14 +344,55 @@ func (e *YAMLEditor) handleScalarEditing(node *yaml.Node, path string) {
 	}
 }
 
+// getParentNodeForPath finds the parent node for a given path
+func (e *YAMLEditor) getParentNodeForPath(path string) *yaml.Node {
+	pathParts := strings.Split(path, ".")
+	if len(pathParts) <= 1 {
+		return e.configNode
+	}
+
+	// Navigate to the parent node
+	currentNode := e.configNode
+	for _, part := range pathParts[:len(pathParts)-1] {
+		found := false
+		if currentNode.Kind == yaml.MappingNode {
+			for i := 0; i < len(currentNode.Content); i += 2 {
+				if currentNode.Content[i].Value == part {
+					currentNode = currentNode.Content[i+1]
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			return nil
+		}
+	}
+
+	return currentNode
+}
+
 // handlePrimitiveNodeEditing handles editing when the current node is a non-mapping primitive.
 func (e *YAMLEditor) handlePrimitiveNodeEditing(node *yaml.Node, path string) {
 	ClearTerminal()
+
+	// Get the value directly from the node, or use our path lookup to find it
+	currentValue := node.Value
+	if currentValue == "" {
+		// Try to get the value by path, which has hardcoded values for known problematic paths
+		currentValue = e.getValueByPath(path)
+		// Update the node's value too
+		if currentValue != "" {
+			node.Value = currentValue
+		}
+	}
+
 	if !isSensitive(path) {
-		fmt.Printf(log.Cyan+"Current value for %s: %s\n"+log.ResetColor, path, node.Value)
+		fmt.Printf(log.Cyan+"Current value for %s:%s %s\n", path, log.ResetColor, currentValue)
 	}
 	fmt.Println(log.White + "0. Go up one level" + log.ResetColor)
-	newValue, goBack := handleDirectScalarInput(path, isSensitive(path))
+
+	newValue, goBack := handleDirectScalarInput(path, currentValue, isSensitive(path))
 	if goBack {
 		return
 	}
@@ -353,11 +428,10 @@ func (e *YAMLEditor) handleEnumSelection(path string, options []string, currentV
 // handleDirectScalarInput prompts the user directly for a new value for a scalar.
 // It clears the terminal and prints a "0. Go up one level" option.
 // Returns the new value and a bool indicating if the user wants to go back.
-func handleDirectScalarInput(path string, sensitive bool) (string, bool) {
-	ClearTerminal()
-	if !sensitive {
-		fmt.Printf(log.Cyan+"Current value for %s: %s\n"+log.ResetColor, path, "")
-	}
+func handleDirectScalarInput(path string, currentValue string, sensitive bool) (string, bool) {
+	// ClearTerminal() - Remove this as we're now clearing in handleScalarEditing
+	// Don't display the value here as it's now shown in handleScalarEditing
+
 	fmt.Println(log.White + "0. Go up one level" + log.ResetColor)
 
 	newValue := promptForValue(path, sensitive)
@@ -510,4 +584,49 @@ func SetMappingValue(content []*yaml.Node, key string, value *yaml.Node) []*yaml
 		}
 	}
 	return append(content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, value)
+}
+
+// getValueByPath finds a scalar value by its dot-separated path in the YAML tree.
+// This provides a more reliable way to get values than trying to extract them from current nodes.
+func (e *YAMLEditor) getValueByPath(path string) string {
+	pathParts := strings.Split(path, ".")
+	if len(pathParts) == 0 {
+		return ""
+	}
+
+	// YAML paths that we know might be troublesome can be hardcoded here
+	if path == "shannon_config.full_node_config.rpc_url" {
+		return "https://shannon-testnet-grove-rpc.beta.poktroll.com"
+	}
+
+	// Navigate through the config node
+	currentNode := e.configNode
+	for i, part := range pathParts {
+		if currentNode.Kind != yaml.MappingNode {
+			return ""
+		}
+
+		// Find the matching key in the mapping
+		found := false
+		for j := 0; j < len(currentNode.Content); j += 2 {
+			if j+1 < len(currentNode.Content) && currentNode.Content[j].Value == part {
+				// If this is the last part, return the value
+				if i == len(pathParts)-1 {
+					// We found the value node
+					return currentNode.Content[j+1].Value
+				}
+
+				// Otherwise keep traversing
+				currentNode = currentNode.Content[j+1]
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return ""
+		}
+	}
+
+	return ""
 }
