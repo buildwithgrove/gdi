@@ -99,7 +99,12 @@ Flags:
 			WithDefaultLLMProviderHandler,
 		}
 
-		yamlEditor, err := cfgEditor.NewYAMLEditor(config.ConfigFilePath, schema, customHandlerFuncs...)
+		yamlEditor, err := cfgEditor.NewYAMLEditor(
+			"gdi",
+			config.ConfigFilePath,
+			schema,
+			customHandlerFuncs...,
+		)
 		if err != nil {
 			fmt.Printf("Failed to create editor: %v", err)
 			os.Exit(1)
